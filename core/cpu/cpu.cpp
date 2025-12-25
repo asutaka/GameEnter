@@ -572,6 +572,102 @@ void CPU::RTI() {
     PC = pop16();
 }
 
+// =====================
+// Illegal Opcodes
+// =====================
+// These are undocumented opcodes that combine two operations
+// Some games and nestest rely on them
+
+void CPU::LAX(uint16_t addr) {
+    // LDA + LDX: Load both A and X with same value
+    uint8_t value = read(addr);
+    A = value;
+    X = value;
+    update_zero_negative(value);
+}
+
+void CPU::SAX(uint16_t addr) {
+    // Store A AND X
+    write(addr, A & X);
+}
+
+void CPU::DCP(uint16_t addr) {
+    // DEC + CMP: Decrement memory then compare with A
+    uint8_t value = read(addr) - 1;
+    write(addr, value);
+    
+    // CMP logic
+    uint16_t result = A - value;
+    set_flag(StatusFlag::FLAG_CARRY, A >= value);
+    update_zero_negative(result & 0xFF);
+}
+
+void CPU::ISC(uint16_t addr) {
+    // INC + SBC: Increment memory then subtract from A
+    uint8_t value = read(addr) + 1;
+    write(addr, value);
+    
+    // SBC logic
+    uint16_t result = A - value - (get_flag(StatusFlag::FLAG_CARRY) ? 0 : 1);
+    set_flag(StatusFlag::FLAG_CARRY, result < 0x100);
+    set_flag(StatusFlag::FLAG_OVERFLOW, ((A ^ value) & (A ^ result) & 0x80) != 0);
+    A = result & 0xFF;
+    update_zero_negative(A);
+}
+
+void CPU::SLO(uint16_t addr) {
+    // ASL + ORA: Shift left then OR with A
+    uint8_t value = read(addr);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x80) != 0);
+    value <<= 1;
+    write(addr, value);
+    
+    // ORA logic
+    A |= value;
+    update_zero_negative(A);
+}
+
+void CPU::RLA(uint16_t addr) {
+    // ROL + AND: Rotate left then AND with A
+    uint8_t value = read(addr);
+    bool old_carry = get_flag(StatusFlag::FLAG_CARRY);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x80) != 0);
+    value = (value << 1) | (old_carry ? 1 : 0);
+    write(addr, value);
+    
+    // AND logic
+    A &= value;
+    update_zero_negative(A);
+}
+
+void CPU::SRE(uint16_t addr) {
+    // LSR + EOR: Shift right then XOR with A
+    uint8_t value = read(addr);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x01) != 0);
+    value >>= 1;
+    write(addr, value);
+    
+    // EOR logic
+    A ^= value;
+    update_zero_negative(A);
+}
+
+void CPU::RRA(uint16_t addr) {
+    // ROR + ADC: Rotate right then add to A
+    uint8_t value = read(addr);
+    bool old_carry = get_flag(StatusFlag::FLAG_CARRY);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x01) != 0);
+    value = (value >> 1) | (old_carry ? 0x80 : 0);
+    write(addr, value);
+    
+    // ADC logic
+    uint16_t result = A + value + (get_flag(StatusFlag::FLAG_CARRY) ? 1 : 0);
+    set_flag(StatusFlag::FLAG_CARRY, result > 0xFF);
+    set_flag(StatusFlag::FLAG_OVERFLOW, (~(A ^ value) & (A ^ result) & 0x80) != 0);
+    A = result & 0xFF;
+    update_zero_negative(A);
+}
+
 // Execute implementation trong opcodes.cpp
 
 } // namespace nes

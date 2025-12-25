@@ -96,6 +96,17 @@ void CPU::exec_ROR_A(uint16_t) {
     update_zero_negative(A);
 }
 
+// Illegal opcode wrappers
+void CPU::exec_LAX(uint16_t addr) { LAX(addr); }
+void CPU::exec_SAX(uint16_t addr) { SAX(addr); }
+void CPU::exec_DCP(uint16_t addr) { DCP(addr); }
+void CPU::exec_ISC(uint16_t addr) { ISC(addr); }
+void CPU::exec_SLO(uint16_t addr) { SLO(addr); }
+void CPU::exec_RLA(uint16_t addr) { RLA(addr); }
+void CPU::exec_SRE(uint16_t addr) { SRE(addr); }
+void CPU::exec_RRA(uint16_t addr) { RRA(addr); }
+
+
 // Bảng 256 opcodes
 // Format: { Tên, Execute, AddrMode, Cycles, PageCrossPenalty }
 static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
@@ -283,29 +294,29 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"LDY", &CPU::exec_LDY, &CPU::addr_immediate, 2, false},    // 0xA0
     {"LDA", &CPU::exec_LDA, &CPU::addr_indirect_x, 6, false},   // 0xA1
     {"LDX", &CPU::exec_LDX, &CPU::addr_immediate, 2, false},    // 0xA2
-    {"*LAX", &CPU::exec_NOP, &CPU::addr_indirect_x, 6, false},  // 0xA3 - Illegal
+    {"*LAX", &CPU::exec_LAX, &CPU::addr_indirect_x, 6, false},  // 0xA3 - Illegal
     {"LDY", &CPU::exec_LDY, &CPU::addr_zero_page, 3, false},    // 0xA4
     {"LDA", &CPU::exec_LDA, &CPU::addr_zero_page, 3, false},    // 0xA5
     {"LDX", &CPU::exec_LDX, &CPU::addr_zero_page, 3, false},    // 0xA6
-    {"*LAX", &CPU::exec_NOP, &CPU::addr_zero_page, 3, false},   // 0xA7 - Illegal
+    {"*LAX", &CPU::exec_LAX, &CPU::addr_zero_page, 3, false},   // 0xA7 - Illegal
     {"TAY", &CPU::exec_TAY, &CPU::addr_implied, 2, false},      // 0xA8
     {"LDA", &CPU::exec_LDA, &CPU::addr_immediate, 2, false},    // 0xA9
     {"TAX", &CPU::exec_TAX, &CPU::addr_implied, 2, false},      // 0xAA
-    {"*LAX", &CPU::exec_NOP, &CPU::addr_immediate, 2, false},   // 0xAB - Illegal
+    {"*LAX", &CPU::exec_LAX, &CPU::addr_immediate, 2, false},   // 0xAB - Illegal
     {"LDY", &CPU::exec_LDY, &CPU::addr_absolute, 4, false},     // 0xAC
     {"LDA", &CPU::exec_LDA, &CPU::addr_absolute, 4, false},     // 0xAD
     {"LDX", &CPU::exec_LDX, &CPU::addr_absolute, 4, false},     // 0xAE
-    {"*LAX", &CPU::exec_NOP, &CPU::addr_absolute, 4, false},    // 0xAF - Illegal
+    {"*LAX", &CPU::exec_LAX, &CPU::addr_absolute, 4, false},    // 0xAF - Illegal
     
     // 0xB0-0xBF
     {"BCS", &CPU::exec_BCS, &CPU::addr_relative, 2, true},      // 0xB0
     {"LDA", &CPU::exec_LDA, &CPU::addr_indirect_y, 5, true},    // 0xB1
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0xB2 - Illegal
-    {"*LAX", &CPU::exec_NOP, &CPU::addr_indirect_y, 5, true},   // 0xB3 - Illegal
+    {"*LAX", &CPU::exec_LAX, &CPU::addr_indirect_y, 5, true},   // 0xB3 - Illegal
     {"LDY", &CPU::exec_LDY, &CPU::addr_zero_page_x, 4, false},  // 0xB4
     {"LDA", &CPU::exec_LDA, &CPU::addr_zero_page_x, 4, false},  // 0xB5
     {"LDX", &CPU::exec_LDX, &CPU::addr_zero_page_y, 4, false},  // 0xB6
-    {"*LAX", &CPU::exec_NOP, &CPU::addr_zero_page_y, 4, false}, // 0xB7 - Illegal
+    {"*LAX", &CPU::exec_LAX, &CPU::addr_zero_page_y, 4, false}, // 0xB7 - Illegal
     {"CLV", &CPU::exec_CLV, &CPU::addr_implied, 2, false},      // 0xB8
     {"LDA", &CPU::exec_LDA, &CPU::addr_absolute_y, 4, true},    // 0xB9
     {"TSX", &CPU::exec_TSX, &CPU::addr_implied, 2, false},      // 0xBA
@@ -313,7 +324,7 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"LDY", &CPU::exec_LDY, &CPU::addr_absolute_x, 4, true},    // 0xBC
     {"LDA", &CPU::exec_LDA, &CPU::addr_absolute_x, 4, true},    // 0xBD
     {"LDX", &CPU::exec_LDX, &CPU::addr_absolute_y, 4, true},    // 0xBE
-    {"*LAX", &CPU::exec_NOP, &CPU::addr_absolute_y, 4, true},   // 0xBF - Illegal
+    {"*LAX", &CPU::exec_LAX, &CPU::addr_absolute_y, 4, true},   // 0xBF - Illegal
     
     // 0xC0-0xCF
     {"CPY", &CPU::exec_CPY, &CPU::addr_immediate, 2, false},    // 0xC0

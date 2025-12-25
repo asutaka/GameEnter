@@ -145,6 +145,16 @@ public:
     void exec_LSR_A(uint16_t = 0);
     void exec_ROL_A(uint16_t = 0);
     void exec_ROR_A(uint16_t = 0);
+    
+    // Exec wrappers for illegal opcodes
+    void exec_LAX(uint16_t addr);
+    void exec_SAX(uint16_t addr);
+    void exec_DCP(uint16_t addr);
+    void exec_ISC(uint16_t addr);
+    void exec_SLO(uint16_t addr);
+    void exec_RLA(uint16_t addr);
+    void exec_SRE(uint16_t addr);
+    void exec_RRA(uint16_t addr);
 
 private:
     Memory* memory_;
@@ -259,6 +269,16 @@ private:
     void BRK(); // Break
     void NOP(); // No Operation
     void RTI(); // Return from Interrupt
+    
+    // Illegal Opcodes (used by some games and nestest)
+    void LAX(uint16_t addr); // LDA + LDX
+    void SAX(uint16_t addr); // Store A AND X
+    void DCP(uint16_t addr); // DEC + CMP
+    void ISC(uint16_t addr); // INC + SBC
+    void SLO(uint16_t addr); // ASL + ORA
+    void RLA(uint16_t addr); // ROL + AND
+    void SRE(uint16_t addr); // LSR + EOR
+    void RRA(uint16_t addr); // ROR + ADC
     
 };
 
