@@ -107,13 +107,15 @@ int main(int argc, char* argv[]) {
             log_cpu_state(emu, log_file);
         }
         
-        // Execute 1 instruction
-        emu.cpu_.step();
+        // Execute 1 instruction (nestest logs per-instruction, not per-cycle)
+        // Read opcode
+        uint8_t opcode = emu.memory_.read(emu.cpu_.PC++);
         
-        // Wait for instruction to complete
-        while (emu.cpu_.cycles_remaining > 0) {
-            emu.cpu_.step();
-        }
+        // Execute instruction
+        emu.cpu_.execute(opcode);
+        
+        // Update total cycles
+        emu.cpu_.total_cycles += emu.cpu_.cycles_remaining;
         
         instruction_count++;
         
