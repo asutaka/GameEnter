@@ -45,6 +45,7 @@ target_include_directories(nes_core PUBLIC
 # Desktop Test Application (Console - No SDL2 needed)
 add_executable(nes_test
     desktop/main.cpp
+    desktop/disassembler.cpp
 )
 
 target_link_libraries(nes_test PRIVATE

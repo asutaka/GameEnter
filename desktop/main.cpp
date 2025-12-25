@@ -1,22 +1,52 @@
 #include "../core/emulator.h"
+#include "disassembler.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 
 using namespace nes;
 
-void log_cpu_state(const CPU& cpu, std::ostream& out) {
-    // Format giống nestest.log:
-    // PC  A  X  Y  P  SP  CYC
-    out << std::hex << std::uppercase << std::setfill('0')
-        << std::setw(4) << cpu.PC << "  "
-        << "A:" << std::setw(2) << (int)cpu.A << " "
-        << "X:" << std::setw(2) << (int)cpu.X << " "
-        << "Y:" << std::setw(2) << (int)cpu.Y << " "
-        << "P:" << std::setw(2) << (int)cpu.P << " "
-        << "SP:" << std::setw(2) << (int)cpu.SP << " "
-        << "CYC:" << std::dec << cpu.total_cycles
-        << std::endl;
+void log_cpu_state(Emulator& emu, std::ostream& out) {
+    const CPU& cpu = emu.cpu_;
+    Memory* mem = &emu.memory_;  // Get pointer to memory object
+    
+    // Disassemble current instruction
+    DisassembledInstruction inst = Disassembler::disassemble(cpu.PC, mem);
+    
+    // Format: PC  BYTES  INSTRUCTION                       A:XX X:XX Y:XX P:XX SP:XX PPU:XXX,XXX CYC:X
+    out << std::hex << std::uppercase << std::setfill('0');
+    
+    // PC (4 hex digits)
+    out << std::setw(4) << cpu.PC << "  ";
+    
+    // Instruction bytes and disassembly (padded to 47 chars with spaces)
+    std::string instr_str = inst.to_string();
+    out << instr_str;
+    
+    // Pad to ensure alignment (nestest uses 48 chars total for PC + instruction)
+    int padding = 48 - 6 - instr_str.length(); // 48 total - 6 for "XXXX  "
+    for (int i = 0; i < padding; i++) {
+        out << ' ';
+    }
+    
+    // Registers (with zero-fill for hex values)
+    out << "A:" << std::setw(2) << (int)cpu.A
+        << " X:" << std::setw(2) << (int)cpu.X
+        << " Y:" << std::setw(2) << (int)cpu.Y
+        << " P:" << std::setw(2) << (int)cpu.P
+        << " SP:" << std::setw(2) << (int)cpu.SP;
+    
+    // PPU state (with space-fill for decimal values)
+    int ppu_scanline = 0;
+    int ppu_cycle = (cpu.total_cycles * 3) % 341; // PPU runs at 3x CPU speed
+    out << " PPU:" << std::setw(3) << std::setfill(' ') << ppu_scanline 
+        << "," << std::setw(3) << ppu_cycle;
+    
+    // CPU cycles (decimal)
+    out << " CYC:" << std::dec << cpu.total_cycles;
+    
+    out << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -54,7 +84,7 @@ int main(int argc, char* argv[]) {
     
     // Nestest.nes specific: Start at $C000 for automated test
     // Uncomment nếu run nestest.nes:
-    // emu.cpu_.PC = 0xC000;
+    emu.cpu_.PC = 0xC000;
     
     std::cout << "Starting CPU test..." << std::endl;
     std::cout << "Press Ctrl+C to stop" << std::endl;
@@ -72,9 +102,9 @@ int main(int argc, char* argv[]) {
     
     while (instruction_count < MAX_INSTRUCTIONS) {
         // Log state trước khi execute
-        log_cpu_state(emu.cpu_, std::cout);
+        log_cpu_state(emu, std::cout);
         if (log_file) {
-            log_cpu_state(emu.cpu_, log_file);
+            log_cpu_state(emu, log_file);
         }
         
         // Execute 1 instruction
