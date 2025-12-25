@@ -187,6 +187,55 @@
 
 ---
 
-**Cập nhật**: 2025-12-25 19:20
-**Commits**: 3 major implementations
-**Status**: Ready for Testing ✅
+## 🆕 Update: Session Hiện Tại (2025-12-25 19:56)
+
+### ✅ Đã Hoàn Thành
+1. **✅ Download nestest.nes** - Test ROM đã có sẵn trong `tests/test_roms/`
+2. **✅ Download nestest.log** - Log chuẩn để so sánh
+3. **✅ Tạo SETUP_COMPILER.md** - Hướng dẫn cài đặt compiler đầy đủ
+4. **✅ Tạo build.ps1** - Script tự động hóa build process
+
+### 📝 Build Scripts Mới
+**File: `build.ps1`**
+```powershell
+# Các lệnh có sẵn:
+.\build.ps1 clean    # Xóa build directory
+.\build.ps1 debug    # Build debug version
+.\build.ps1 release  # Build release version
+.\build.ps1 test     # Build và chạy nestest
+```
+
+**File: `SETUP_COMPILER.md`**
+- Hướng dẫn cài MinGW/MSYS2
+- Hướng dẫn cài Visual Studio
+- Troubleshooting common issues
+
+### ⚠️ Cần Setup Trước Khi Test
+**Bạn cần cài đặt C++ compiler:**
+- **Option 1 (Khuyến nghị)**: MSYS2 + MinGW (~1GB)
+- **Option 2**: Visual Studio Build Tools (~3GB)
+- **Option 3**: Visual Studio Community (~6GB)
+
+Xem chi tiết trong `SETUP_COMPILER.md`
+
+### 🎯 Bước Tiếp Theo (SAU KHI CÀI COMPILER)
+1. **Setup compiler** (xem SETUP_COMPILER.md)
+2. **Build project**:
+   ```powershell
+   .\build.ps1 debug
+   ```
+3. **Run nestest**:
+   ```powershell
+   .\build.ps1 test
+   ```
+4. **So sánh log**:
+   - File output: `cpu_trace.log`
+   - File chuẩn: `tests/test_roms/nestest.log`
+   - Tìm instruction sai đầu tiên
+5. **Debug & Fix opcodes**
+
+---
+
+**Cập nhật**: 2025-12-25 19:56
+**Commits**: 3 major implementations + 2 helper scripts
+**Status**: Ready for Testing (cần cài compiler) ⚙️

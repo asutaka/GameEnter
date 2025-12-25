@@ -23,7 +23,7 @@ void CPU::reset() {
     X = 0;
     Y = 0;
     SP = 0xFD;
-    P = 0x24; // Interrupt disable = 1, Unused = 1
+    P = 0x24; // StatusFlag::FLAG_INTERRUPT disable = 1, StatusFlag::FLAG_UNUSED = 1
     
     // Load PC from reset vector ($FFFC-$FFFD)
     if (memory_) {
@@ -52,10 +52,10 @@ int CPU::step() {
 }
 
 void CPU::irq() {
-    if (!get_flag(INTERRUPT)) {
+    if (!get_flag(StatusFlag::FLAG_INTERRUPT)) {
         push16(PC);
-        push(P & ~BREAK);
-        set_flag(INTERRUPT, true);
+        push(P & ~static_cast<uint8_t>(StatusFlag::FLAG_BREAK));
+        set_flag(StatusFlag::FLAG_INTERRUPT, true);
         PC = read16(0xFFFE);
         cycles_remaining = 7;
     }
@@ -63,8 +63,8 @@ void CPU::irq() {
 
 void CPU::nmi() {
     push16(PC);
-    push(P & ~BREAK);
-    set_flag(INTERRUPT, true);
+    push(P & ~static_cast<uint8_t>(StatusFlag::FLAG_BREAK));
+    set_flag(StatusFlag::FLAG_INTERRUPT, true);
     PC = read16(0xFFFA);
     cycles_remaining = 7;
 }
@@ -74,20 +74,21 @@ void CPU::nmi() {
 // =====================
 
 void CPU::set_flag(StatusFlag flag, bool value) {
+    uint8_t flag_value = static_cast<uint8_t>(flag);
     if (value) {
-        P |= flag;
+        P |= flag_value;
     } else {
-        P &= ~flag;
+        P &= ~flag_value;
     }
 }
 
 bool CPU::get_flag(StatusFlag flag) const {
-    return (P & flag) != 0;
+    return (P & static_cast<uint8_t>(flag)) != 0;
 }
 
 void CPU::update_zero_negative(uint8_t value) {
-    set_flag(ZERO, value == 0);
-    set_flag(NEGATIVE, (value & 0x80) != 0);
+    set_flag(StatusFlag::FLAG_ZERO, value == 0);
+    set_flag(StatusFlag::FLAG_NEGATIVE, (value & 0x80) != 0);
 }
 
 // =====================
@@ -285,7 +286,7 @@ void CPU::PHA() {
 }
 
 void CPU::PHP() {
-    push(P | BREAK | UNUSED);
+    push(P | static_cast<uint8_t>(StatusFlag::FLAG_BREAK) | static_cast<uint8_t>(StatusFlag::FLAG_UNUSED));
 }
 
 void CPU::PLA() {
@@ -295,8 +296,8 @@ void CPU::PLA() {
 
 void CPU::PLP() {
     P = pop();
-    set_flag(BREAK, false);
-    set_flag(UNUSED, true);
+    set_flag(StatusFlag::FLAG_BREAK, false);
+    set_flag(StatusFlag::FLAG_UNUSED, true);
 }
 
 // =====================
@@ -320,9 +321,9 @@ void CPU::ORA(uint16_t addr) {
 
 void CPU::BIT(uint16_t addr) {
     uint8_t value = read(addr);
-    set_flag(ZERO, (A & value) == 0);
-    set_flag(OVERFLOW, (value & 0x40) != 0);
-    set_flag(NEGATIVE, (value & 0x80) != 0);
+    set_flag(StatusFlag::FLAG_ZERO, (A & value) == 0);
+    set_flag(StatusFlag::FLAG_OVERFLOW, (value & 0x40) != 0);
+    set_flag(StatusFlag::FLAG_NEGATIVE, (value & 0x80) != 0);
 }
 
 // =====================
@@ -331,10 +332,10 @@ void CPU::BIT(uint16_t addr) {
 
 void CPU::ADC(uint16_t addr) {
     uint8_t value = read(addr);
-    uint16_t result = A + value + (get_flag(CARRY) ? 1 : 0);
+    uint16_t result = A + value + (get_flag(StatusFlag::FLAG_CARRY) ? 1 : 0);
     
-    set_flag(CARRY, result > 0xFF);
-    set_flag(OVERFLOW, (~(A ^ value) & (A ^ result) & 0x80) != 0);
+    set_flag(StatusFlag::FLAG_CARRY, result > 0xFF);
+    set_flag(StatusFlag::FLAG_OVERFLOW, (~(A ^ value) & (A ^ result) & 0x80) != 0);
     
     A = result & 0xFF;
     update_zero_negative(A);
@@ -342,10 +343,10 @@ void CPU::ADC(uint16_t addr) {
 
 void CPU::SBC(uint16_t addr) {
     uint8_t value = read(addr);
-    uint16_t result = A - value - (get_flag(CARRY) ? 0 : 1);
+    uint16_t result = A - value - (get_flag(StatusFlag::FLAG_CARRY) ? 0 : 1);
     
-    set_flag(CARRY, result < 0x100);
-    set_flag(OVERFLOW, ((A ^ value) & (A ^ result) & 0x80) != 0);
+    set_flag(StatusFlag::FLAG_CARRY, result < 0x100);
+    set_flag(StatusFlag::FLAG_OVERFLOW, ((A ^ value) & (A ^ result) & 0x80) != 0);
     
     A = result & 0xFF;
     update_zero_negative(A);
@@ -355,7 +356,7 @@ void CPU::CMP(uint16_t addr) {
     uint8_t value = read(addr);
     uint16_t result = A - value;
     
-    set_flag(CARRY, A >= value);
+    set_flag(StatusFlag::FLAG_CARRY, A >= value);
     update_zero_negative(result & 0xFF);
 }
 
@@ -363,7 +364,7 @@ void CPU::CPX(uint16_t addr) {
     uint8_t value = read(addr);
     uint16_t result = X - value;
     
-    set_flag(CARRY, X >= value);
+    set_flag(StatusFlag::FLAG_CARRY, X >= value);
     update_zero_negative(result & 0xFF);
 }
 
@@ -371,7 +372,7 @@ void CPU::CPY(uint16_t addr) {
     uint8_t value = read(addr);
     uint16_t result = Y - value;
     
-    set_flag(CARRY, Y >= value);
+    set_flag(StatusFlag::FLAG_CARRY, Y >= value);
     update_zero_negative(result & 0xFF);
 }
 
@@ -417,7 +418,7 @@ void CPU::DEY() {
 
 void CPU::ASL(uint16_t addr) {
     uint8_t value = read(addr);
-    set_flag(CARRY, (value & 0x80) != 0);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x80) != 0);
     value <<= 1;
     write(addr, value);
     update_zero_negative(value);
@@ -425,7 +426,7 @@ void CPU::ASL(uint16_t addr) {
 
 void CPU::LSR(uint16_t addr) {
     uint8_t value = read(addr);
-    set_flag(CARRY, (value & 0x01) != 0);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x01) != 0);
     value >>= 1;
     write(addr, value);
     update_zero_negative(value);
@@ -433,8 +434,8 @@ void CPU::LSR(uint16_t addr) {
 
 void CPU::ROL(uint16_t addr) {
     uint8_t value = read(addr);
-    bool old_carry = get_flag(CARRY);
-    set_flag(CARRY, (value & 0x80) != 0);
+    bool old_carry = get_flag(StatusFlag::FLAG_CARRY);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x80) != 0);
     value = (value << 1) | (old_carry ? 1 : 0);
     write(addr, value);
     update_zero_negative(value);
@@ -442,8 +443,8 @@ void CPU::ROL(uint16_t addr) {
 
 void CPU::ROR(uint16_t addr) {
     uint8_t value = read(addr);
-    bool old_carry = get_flag(CARRY);
-    set_flag(CARRY, (value & 0x01) != 0);
+    bool old_carry = get_flag(StatusFlag::FLAG_CARRY);
+    set_flag(StatusFlag::FLAG_CARRY, (value & 0x01) != 0);
     value = (value >> 1) | (old_carry ? 0x80 : 0);
     write(addr, value);
     update_zero_negative(value);
@@ -471,56 +472,56 @@ void CPU::RTS() {
 // =====================
 
 void CPU::BCC(uint16_t addr) {
-    if (!get_flag(CARRY)) {
+    if (!get_flag(StatusFlag::FLAG_CARRY)) {
         PC = addr;
         cycles_remaining++; // Branch taken: +1 cycle
     }
 }
 
 void CPU::BCS(uint16_t addr) {
-    if (get_flag(CARRY)) {
+    if (get_flag(StatusFlag::FLAG_CARRY)) {
         PC = addr;
         cycles_remaining++;
     }
 }
 
 void CPU::BEQ(uint16_t addr) {
-    if (get_flag(ZERO)) {
+    if (get_flag(StatusFlag::FLAG_ZERO)) {
         PC = addr;
         cycles_remaining++;
     }
 }
 
 void CPU::BMI(uint16_t addr) {
-    if (get_flag(NEGATIVE)) {
+    if (get_flag(StatusFlag::FLAG_NEGATIVE)) {
         PC = addr;
         cycles_remaining++;
     }
 }
 
 void CPU::BNE(uint16_t addr) {
-    if (!get_flag(ZERO)) {
+    if (!get_flag(StatusFlag::FLAG_ZERO)) {
         PC = addr;
         cycles_remaining++;
     }
 }
 
 void CPU::BPL(uint16_t addr) {
-    if (!get_flag(NEGATIVE)) {
+    if (!get_flag(StatusFlag::FLAG_NEGATIVE)) {
         PC = addr;
         cycles_remaining++;
     }
 }
 
 void CPU::BVC(uint16_t addr) {
-    if (!get_flag(OVERFLOW)) {
+    if (!get_flag(StatusFlag::FLAG_OVERFLOW)) {
         PC = addr;
         cycles_remaining++;
     }
 }
 
 void CPU::BVS(uint16_t addr) {
-    if (get_flag(OVERFLOW)) {
+    if (get_flag(StatusFlag::FLAG_OVERFLOW)) {
         PC = addr;
         cycles_remaining++;
     }
@@ -530,13 +531,13 @@ void CPU::BVS(uint16_t addr) {
 // Opcodes - Flag
 // =====================
 
-void CPU::CLC() { set_flag(CARRY, false); }
-void CPU::CLD() { set_flag(DECIMAL, false); }
-void CPU::CLI() { set_flag(INTERRUPT, false); }
-void CPU::CLV() { set_flag(OVERFLOW, false); }
-void CPU::SEC() { set_flag(CARRY, true); }
-void CPU::SED() { set_flag(DECIMAL, true); }
-void CPU::SEI() { set_flag(INTERRUPT, true); }
+void CPU::CLC() { set_flag(StatusFlag::FLAG_CARRY, false); }
+void CPU::CLD() { set_flag(StatusFlag::FLAG_DECIMAL, false); }
+void CPU::CLI() { set_flag(StatusFlag::FLAG_INTERRUPT, false); }
+void CPU::CLV() { set_flag(StatusFlag::FLAG_OVERFLOW, false); }
+void CPU::SEC() { set_flag(StatusFlag::FLAG_CARRY, true); }
+void CPU::SED() { set_flag(StatusFlag::FLAG_DECIMAL, true); }
+void CPU::SEI() { set_flag(StatusFlag::FLAG_INTERRUPT, true); }
 
 // =====================
 // Opcodes - System
@@ -545,8 +546,8 @@ void CPU::SEI() { set_flag(INTERRUPT, true); }
 void CPU::BRK() {
     PC++;
     push16(PC);
-    push(P | BREAK);
-    set_flag(INTERRUPT, true);
+    push(P | static_cast<uint8_t>(StatusFlag::FLAG_BREAK));
+    set_flag(StatusFlag::FLAG_INTERRUPT, true);
     PC = read16(0xFFFE);
 }
 
@@ -556,8 +557,8 @@ void CPU::NOP() {
 
 void CPU::RTI() {
     P = pop();
-    set_flag(BREAK, false);
-    set_flag(UNUSED, true);
+    set_flag(StatusFlag::FLAG_BREAK, false);
+    set_flag(StatusFlag::FLAG_UNUSED, true);
     PC = pop16();
 }
 

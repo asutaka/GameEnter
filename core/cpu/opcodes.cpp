@@ -74,24 +74,24 @@ void CPU::exec_RTS(uint16_t) { RTS(); }
 
 // ASL/LSR/ROL/ROR cho Accumulator mode
 void CPU::exec_ASL_A(uint16_t) {
-    set_flag(CARRY, (A & 0x80) != 0);
+    set_flag(StatusFlag::FLAG_CARRY, (A & 0x80) != 0);
     A <<= 1;
     update_zero_negative(A);
 }
 void CPU::exec_LSR_A(uint16_t) {
-    set_flag(CARRY, (A & 0x01) != 0);
+    set_flag(StatusFlag::FLAG_CARRY, (A & 0x01) != 0);
     A >>= 1;
     update_zero_negative(A);
 }
 void CPU::exec_ROL_A(uint16_t) {
-    bool old_carry = get_flag(CARRY);
-    set_flag(CARRY, (A & 0x80) != 0);
+    bool old_carry = get_flag(StatusFlag::FLAG_CARRY);
+    set_flag(StatusFlag::FLAG_CARRY, (A & 0x80) != 0);
     A = (A << 1) | (old_carry ? 1 : 0);
     update_zero_negative(A);
 }
 void CPU::exec_ROR_A(uint16_t) {
-    bool old_carry = get_flag(CARRY);
-    set_flag(CARRY, (A & 0x01) != 0);
+    bool old_carry = get_flag(StatusFlag::FLAG_CARRY);
+    set_flag(StatusFlag::FLAG_CARRY, (A & 0x01) != 0);
     A = (A >> 1) | (old_carry ? 0x80 : 0);
     update_zero_negative(A);
 }

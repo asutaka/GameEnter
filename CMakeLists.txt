@@ -11,10 +11,18 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Compiler flags
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+# Compiler flags (cross-platform)
+if(MSVC)
+    # MSVC flags
+    add_compile_options(/W4)  # Warning level 4
+    set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2")
+else()
+    # GCC/Clang flags
+    add_compile_options(-Wall -Wextra)
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+endif()
 
 # Emulator Core Library
 add_library(nes_core STATIC
@@ -34,28 +42,38 @@ target_include_directories(nes_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/core
 )
 
-# Desktop Application (SDL2)
+# Desktop Test Application (Console - No SDL2 needed)
+add_executable(nes_test
+    desktop/main.cpp
+)
+
+target_link_libraries(nes_test PRIVATE
+    nes_core
+)
+
+message(STATUS "Console test app: ENABLED")
+
+# Desktop Application với SDL2 (Optional)
 find_package(SDL2 QUIET)
 
 if(SDL2_FOUND)
-    add_executable(nes_desktop
-        desktop/main.cpp
-        desktop/renderer_sdl.cpp
-        desktop/audio_sdl.cpp
-    )
+    # TODO: Tạo SDL2 app sau khi CPU test pass
+    # add_executable(nes_desktop_sdl
+    #     desktop/main_sdl.cpp
+    #     desktop/renderer_sdl.cpp
+    #     desktop/audio_sdl.cpp
+    # )
+    # 
+    # target_link_libraries(nes_desktop_sdl PRIVATE
+    #     nes_core
+    #     SDL2::SDL2
+    # )
     
-    target_link_libraries(nes_desktop PRIVATE
-        nes_core
-        SDL2::SDL2
-    )
-    
-    message(STATUS "Desktop build: ENABLED (SDL2 found)")
+    message(STATUS "SDL2 found: ${SDL2_VERSION}")
+    message(STATUS "SDL2 app: TODO (sau khi CPU test pass)")
 else()
-    message(STATUS "Desktop build: DISABLED (SDL2 not found)")
-    message(STATUS "To enable desktop build, install SDL2:")
-    message(STATUS "  Windows: vcpkg install sdl2")
-    message(STATUS "  Linux: sudo apt-get install libsdl2-dev")
-    message(STATUS "  macOS: brew install sdl2")
+    message(STATUS "SDL2 not found (optional)")
+    message(STATUS "Console test app vẫn build được!")
 endif()
 
 # Tests (Google Test)

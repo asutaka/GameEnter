@@ -1,29 +1,480 @@
 #include "ppu/ppu.h"
+#include "cartridge/cartridge.h"
+#include <cstring>
 
 namespace nes {
 
-PPU::PPU() {}
-PPU::~PPU() {}
+// NES Color Palette (NTSC) - 64 màu
+// Format: 0xAARRGGBB
+const uint32_t PPU::PALETTE_COLORS[64] = {
+    0xFF666666, 0xFF002A88, 0xFF1412A7, 0xFF3B00A4, 0xFF5C007E, 0xFF6E0040, 0xFF6C0600, 0xFF561D00,
+    0xFF333500, 0xFF0B4800, 0xFF005200, 0xFF004F08, 0xFF00404D, 0xFF000000, 0xFF000000, 0xFF000000,
+    0xFFADADAD, 0xFF155FD9, 0xFF4240FF, 0xFF7527FE, 0xFFA01ACC, 0xFFB71E7B, 0xFFB53120, 0xFF994E00,
+    0xFF6B6D00, 0xFF388700, 0xFF0C9300, 0xFF008F32, 0xFF007C8D, 0xFF000000, 0xFF000000, 0xFF000000,
+    0xFFFFFEFF, 0xFF64B0FF, 0xFF9290FF, 0xFFC676FF, 0xFFF36AFF, 0xFFFE6ECC, 0xFFFE8170, 0xFFEA9E22,
+    0xFFBCBE00, 0xFF88D800, 0xFF5CE430, 0xFF45E082, 0xFF48CDDE, 0xFF4F4F4F, 0xFF000000, 0xFF000000,
+    0xFFFFFEFF, 0xFFC0DFFF, 0xFFD3D2FF, 0xFFE8C8FF, 0xFFFBC2FF, 0xFFFEC4EA, 0xFFFECCC5, 0xFFF7D8A5,
+    0xFFE4E594, 0xFFCFEF96, 0xFFBDF4AB, 0xFFB3F3CC, 0xFFB5EBF2, 0xFFB8B8B8, 0xFF000000, 0xFF000000,
+};
 
-void PPU::reset() {
-    // TODO: Implement
+PPU::PPU() 
+    : scanline_(0), cycle_(0), frame_(0),
+      nmi_occurred_(false), cartridge_(nullptr),
+      oam_addr_(0), read_buffer_(0),
+      v_(0), t_(0), x_(0), w_(0),
+      sprite_count_(0), sprite_0_rendering_(false) {
+    
+    // Initialize registers
+    std::memset(&ctrl_, 0, sizeof(ctrl_));
+    std::memset(&mask_, 0, sizeof(mask_));
+    std::memset(&status_, 0, sizeof(status_));
+    std::memset(&bg_shifters_, 0, sizeof(bg_shifters_));
+    
+    // Clear memory
+    vram_.fill(0);
+    oam_.fill(0);
+    secondary_oam_.fill(0xFF);
+    palette_.fill(0);
+    framebuffer_.fill(0);
+    sprite_shifters_.fill({0, 0, 0, 0, 0, 0});
 }
 
-void PPU::step() {
-    // TODO: Implement
+PPU::~PPU() {
+}
+
+void PPU::reset() {
+    scanline_ = 0;
+    cycle_ = 0;
+    frame_ = 0;
+    nmi_occurred_ = false;
+    
+    std::memset(&ctrl_, 0, sizeof(ctrl_));
+    std::memset(&mask_, 0, sizeof(mask_));
+    std::memset(&status_, 0, sizeof(status_));
+    
+    oam_addr_ = 0;
+    v_ = 0;
+    t_ = 0;
+    x_ = 0;
+    w_ = 0;
+    read_buffer_ = 0;
+}
+
+void PPU::connect_cartridge(Cartridge* cartridge) {
+    cartridge_ = cartridge;
+}
+
+bool PPU::step() {
+    bool frame_complete = false;
+    
+    // Visible scanlines (0-239) và pre-render (261)
+    if (scanline_ < 240 || scanline_ == 261) {
+        // Background rendering cycles
+        if (cycle_ >= 1 && cycle_ <= 256) {
+            render_pixel();
+            
+            // Fetch background tile data mỗi 8 cycles
+            if (cycle_ % 8 == 0) {
+                fetch_background_tile();
+            }
+        }
+        
+        // Sprite evaluation (cycle 65-256)
+        if (cycle_ == 65) {
+            secondary_oam_.fill(0xFF);
+            sprite_count_ = 0;
+        }
+        
+        if (cycle_ >= 65 && cycle_ <= 256) {
+            if ((cycle_ - 65) % 32 == 0) {
+                evaluate_sprites();
+            }
+        }
+        
+        // Load sprites for next scanline
+        if (cycle_ == 257) {
+            load_sprites();
+        }
+        
+        // Increment scrolling
+        if (cycle_ == 256) {
+            increment_scroll_y();
+        }
+        if (cycle_ == 257) {
+            copy_horizontal_position();
+        }
+        
+        // Pre-render scanline: copy vertical position
+        if (scanline_ == 261 && cycle_ >= 280 && cycle_ <= 304) {
+            copy_vertical_position();
+        }
+    }
+    
+    // VBlank start (scanline 241, cycle 1)
+    if (scanline_ == 241 && cycle_ == 1) {
+        status_.vblank = 1;
+        if (ctrl_.nmi_enable) {
+            nmi_occurred_ = true;
+        }
+        frame_complete = true;
+    }
+    
+    // Clear VBlank (scanline 261, cycle 1)
+    if (scanline_ == 261 && cycle_ == 1) {
+        status_.vblank = 0;
+        status_.sprite_0_hit = 0;
+        status_.sprite_overflow = 0;
+        nmi_occurred_ = false;
+    }
+    
+    // Advance cycle
+    cycle_++;
+    if (cycle_ > 340) {
+        cycle_ = 0;
+        scanline_++;
+        
+        if (scanline_ > 261) {
+            scanline_ = 0;
+            frame_++;
+        }
+    }
+    
+    return frame_complete;
 }
 
 uint8_t PPU::read_register(uint16_t address) {
-    // TODO: Implement
-    return 0;
+    uint8_t value = 0;
+    
+    switch (address & 0x0007) {
+        case 0: // $2000 PPUCTRL - Write only
+            break;
+            
+        case 1: // $2001 PPUMASK - Write only
+            break;
+            
+        case 2: // $2002 PPUSTATUS
+            value = (status_.vblank << 7) | 
+                    (status_.sprite_0_hit << 6) |
+                    (status_.sprite_overflow << 5);
+            status_.vblank = 0;  // Reading clears VBlank
+            w_ = 0;              // Reset write toggle
+            break;
+            
+        case 3: // $2003 OAMADDR - Write only
+            break;
+            
+        case 4: // $2004 OAMDATA
+            value = oam_[oam_addr_];
+            break;
+            
+        case 5: // $2005 PPUSCROLL - Write only
+            break;
+            
+        case 6: // $2006 PPUADDR - Write only
+            break;
+            
+        case 7: // $2007 PPUDATA
+            value = read_buffer_;
+            read_buffer_ = ppu_read(v_);
+            
+            // Palette reads are not buffered
+            if (v_ >= 0x3F00) {
+                value = read_buffer_;
+            }
+            
+            // Increment address
+            v_ += ctrl_.vram_increment ? 32 : 1;
+            v_ &= 0x3FFF;
+            break;
+    }
+    
+    return value;
 }
 
 void PPU::write_register(uint16_t address, uint8_t value) {
-    // TODO: Implement
+    switch (address & 0x0007) {
+        case 0: // $2000 PPUCTRL
+            *reinterpret_cast<uint8_t*>(&ctrl_) = value;
+            t_ = (t_ & 0xF3FF) | ((value & 0x03) << 10);
+            break;
+            
+        case 1: // $2001 PPUMASK
+            *reinterpret_cast<uint8_t*>(&mask_) = value;
+            break;
+            
+        case 2: // $2002 PPUSTATUS - Read only
+            break;
+            
+        case 3: // $2003 OAMADDR
+            oam_addr_ = value;
+            break;
+            
+        case 4: // $2004 OAMDATA
+            oam_[oam_addr_++] = value;
+            break;
+            
+        case 5: // $2005 PPUSCROLL
+            if (w_ == 0) {
+                // First write: X scroll
+                t_ = (t_ & 0xFFE0) | (value >> 3);
+                x_ = value & 0x07;
+                w_ = 1;
+            } else {
+                // Second write: Y scroll
+                t_ = (t_ & 0x8FFF) | ((value & 0x07) << 12);
+                t_ = (t_ & 0xFC1F) | ((value & 0xF8) << 2);
+                w_ = 0;
+            }
+            break;
+            
+        case 6: // $2006 PPUADDR
+            if (w_ == 0) {
+                // First write: High byte
+                t_ = (t_ & 0x00FF) | ((value & 0x3F) << 8);
+                w_ = 1;
+            } else {
+                // Second write: Low byte
+                t_ = (t_ & 0xFF00) | value;
+                v_ = t_;
+                w_ = 0;
+            }
+            break;
+            
+        case 7: // $2007 PPUDATA
+            ppu_write(v_, value);
+            v_ += ctrl_.vram_increment ? 32 : 1;
+            v_ &= 0x3FFF;
+            break;
+    }
 }
 
 void PPU::write_oam_dma(uint8_t index, uint8_t value) {
-    // TODO: Implement
+    oam_[index] = value;
+}
+
+const uint8_t* PPU::get_framebuffer() const {
+    return framebuffer_.data();
+}
+
+// ==================
+// PPU Memory Access
+// ==================
+
+uint8_t PPU::ppu_read(uint16_t address) {
+    address &= 0x3FFF;  // Mirror down to 14 bits
+    
+    if (address < 0x2000) {
+        // Pattern tables (CHR ROM/RAM)
+        if (cartridge_) {
+            return cartridge_->read(address);
+        }
+    }
+    else if (address < 0x3F00) {
+        // Nametables
+        address &= 0x0FFF;
+        
+        // TODO: Mirroring (horizontal/vertical/four-screen)
+        // Hiện tại: horizontal mirroring
+        if (address >= 0x0800) {
+            address -= 0x0800;
+        }
+        
+        return vram_[address & 0x07FF];
+    }
+    else if (address < 0x4000) {
+        // Palette RAM
+        address &= 0x001F;
+        
+        // Mirror $3F10, $3F14, $3F18, $3F1C to $3F00, $3F04, $3F08, $3F0C
+        if (address >= 16 && (address & 0x03) == 0) {
+            address -= 16;
+        }
+        
+        return palette_[address];
+    }
+    
+    return 0;
+}
+
+void PPU::ppu_write(uint16_t address, uint8_t value) {
+    address &= 0x3FFF;
+    
+    if (address < 0x2000) {
+        // Pattern tables (CHR ROM read-only, or CHR RAM)
+        if (cartridge_) {
+            cartridge_->write(address, value);
+        }
+    }
+    else if (address < 0x3F00) {
+        // Nametables
+        address &= 0x0FFF;
+        
+        if (address >= 0x0800) {
+            address -= 0x0800;
+        }
+        
+        vram_[address & 0x07FF] = value;
+    }
+    else if (address < 0x4000) {
+        // Palette RAM
+        address &= 0x001F;
+        
+        if (address >= 16 && (address & 0x03) == 0) {
+            address -= 16;
+        }
+        
+        palette_[address] = value;
+    }
+}
+
+// ==================
+// Rendering
+// ==================
+
+void PPU::render_pixel() {
+    if (scanline_ >= 240 || cycle_ < 1 || cycle_ > 256) {
+        return;
+    }
+    
+    uint8_t bg_pixel = 0;
+    uint8_t bg_palette = 0;
+    
+    // Background rendering
+    if (mask_.show_bg) {
+        // Get pixel from shift registers
+        uint16_t bit_mux = 0x8000 >> x_;
+        
+        uint8_t p0_pixel = (bg_shifters_.pattern_lo & bit_mux) > 0;
+        uint8_t p1_pixel = (bg_shifters_.pattern_hi & bit_mux) > 0;
+        bg_pixel = (p1_pixel << 1) | p0_pixel;
+        
+        uint8_t p0_palette = (bg_shifters_.attribute_lo & bit_mux) > 0;
+        uint8_t p1_palette = (bg_shifters_.attribute_hi & bit_mux) > 0;
+        bg_palette = (p1_palette << 1) | p0_palette;
+    }
+    
+    // Sprite rendering
+    uint8_t sprite_pixel = 0;
+    uint8_t sprite_palette = 0;
+    bool sprite_priority = false;
+    
+    if (mask_.show_sprites) {
+        // TODO: Implement sprite rendering
+    }
+    
+    // Priority and final pixel
+    uint8_t final_pixel = 0;
+    uint8_t final_palette = 0;
+    
+    if (bg_pixel == 0 && sprite_pixel == 0) {
+        // Universal background color
+        final_pixel = 0;
+        final_palette = 0;
+    }
+    else if (bg_pixel == 0 && sprite_pixel > 0) {
+        final_pixel = sprite_pixel;
+        final_palette = sprite_palette + 4;
+    }
+    else if (bg_pixel > 0 && sprite_pixel == 0) {
+        final_pixel = bg_pixel;
+        final_palette = bg_palette;
+    }
+    else {
+        // Both visible: check priority
+        if (sprite_priority) {
+            final_pixel = sprite_pixel;
+            final_palette = sprite_palette + 4;
+        } else {
+            final_pixel = bg_pixel;
+            final_palette = bg_palette;
+        }
+        
+        // Sprite 0 hit detection
+        if (sprite_0_rendering_ && mask_.show_bg && mask_.show_sprites) {
+            if (cycle_ < 255) {  // Not rightmost column
+                status_.sprite_0_hit = 1;
+            }
+        }
+    }
+    
+    // Get color and write to framebuffer
+    uint32_t color = get_color_from_palette(final_palette, final_pixel);
+    
+    int x = cycle_ - 1;
+    int y = scanline_;
+    int index = (y * 256 + x) * 4;
+    
+    framebuffer_[index + 0] = (color >> 16) & 0xFF;  // R
+    framebuffer_[index + 1] = (color >> 8) & 0xFF;   // G
+    framebuffer_[index + 2] = color & 0xFF;          // B
+    framebuffer_[index + 3] = 0xFF;                  // A
+    
+    // Shift background registers
+    bg_shifters_.pattern_lo <<= 1;
+    bg_shifters_.pattern_hi <<= 1;
+    bg_shifters_.attribute_lo <<= 1;
+    bg_shifters_.attribute_hi <<= 1;
+}
+
+void PPU::fetch_background_tile() {
+    // TODO: Implement background tile fetching
+    // This is complex and needs proper implementation
+}
+
+void PPU::evaluate_sprites() {
+    // TODO: Implement sprite evaluation
+}
+
+void PPU::load_sprites() {
+    // TODO: Implement sprite loading
+}
+
+// ==================
+// Scrolling
+// ==================
+
+void PPU::increment_scroll_x() {
+    if ((v_ & 0x001F) == 31) {
+        v_ &= ~0x001F;
+        v_ ^= 0x0400;  // Switch horizontal nametable
+    } else {
+        v_++;
+    }
+}
+
+void PPU::increment_scroll_y() {
+    if ((v_ & 0x7000) != 0x7000) {
+        v_ += 0x1000;
+    } else {
+        v_ &= ~0x7000;
+        int y = (v_ & 0x03E0) >> 5;
+        if (y == 29) {
+            y = 0;
+            v_ ^= 0x0800;  // Switch vertical nametable
+        } else if (y == 31) {
+            y = 0;
+        } else {
+            y++;
+        }
+        v_ = (v_ & ~0x03E0) | (y << 5);
+    }
+}
+
+void PPU::copy_horizontal_position() {
+    v_ = (v_ & 0xFBE0) | (t_ & 0x041F);
+}
+
+void PPU::copy_vertical_position() {
+    v_ = (v_ & 0x841F) | (t_ & 0x7BE0);
+}
+
+// ==================
+// Palette
+// ==================
+
+uint32_t PPU::get_color_from_palette(uint8_t palette_index, uint8_t pixel) {
+    uint8_t color_index = ppu_read(0x3F00 + (palette_index * 4) + pixel) & 0x3F;
+    return PALETTE_COLORS[color_index];
 }
 
 } // namespace nes

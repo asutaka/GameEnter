@@ -62,19 +62,103 @@ public:
     // Cycles còn lại của lệnh hiện tại
     int cycles_remaining;
 
+    // Friend declarations for opcode table
+    friend struct OpcodeInfo;
+    friend void initialize_opcode_table();
+
+    // Addressing modes - Made public for opcode table access
+    uint16_t addr_implied();
+    uint16_t addr_accumulator();
+    uint16_t addr_immediate();
+    uint16_t addr_zero_page();
+    uint16_t addr_zero_page_x();
+    uint16_t addr_zero_page_y();
+    uint16_t addr_absolute();
+    uint16_t addr_absolute_x();
+    uint16_t addr_absolute_y();
+    uint16_t addr_indirect();
+    uint16_t addr_indirect_x();
+    uint16_t addr_indirect_y();
+    uint16_t addr_relative();
+
+    // Execute opcode - Made public for opcode table access
+    void execute(uint8_t opcode);
+    
+    // Exec wrappers for opcode table - Made public for opcode table access
+    void exec_LDA(uint16_t addr);
+    void exec_LDX(uint16_t addr);
+    void exec_LDY(uint16_t addr);
+    void exec_STA(uint16_t addr);
+    void exec_STX(uint16_t addr);
+    void exec_STY(uint16_t addr);
+    void exec_AND(uint16_t addr);
+    void exec_EOR(uint16_t addr);
+    void exec_ORA(uint16_t addr);
+    void exec_BIT(uint16_t addr);
+    void exec_ADC(uint16_t addr);
+    void exec_SBC(uint16_t addr);
+    void exec_CMP(uint16_t addr);
+    void exec_CPX(uint16_t addr);
+    void exec_CPY(uint16_t addr);
+    void exec_INC(uint16_t addr);
+    void exec_DEC(uint16_t addr);
+    void exec_ASL(uint16_t addr);
+    void exec_LSR(uint16_t addr);
+    void exec_ROL(uint16_t addr);
+    void exec_ROR(uint16_t addr);
+    void exec_JMP(uint16_t addr);
+    void exec_JSR(uint16_t addr);
+    void exec_BCC(uint16_t addr);
+    void exec_BCS(uint16_t addr);
+    void exec_BEQ(uint16_t addr);
+    void exec_BMI(uint16_t addr);
+    void exec_BNE(uint16_t addr);
+    void exec_BPL(uint16_t addr);
+    void exec_BVC(uint16_t addr);
+    void exec_BVS(uint16_t addr);
+    void exec_TAX(uint16_t = 0);
+    void exec_TAY(uint16_t = 0);
+    void exec_TXA(uint16_t = 0);
+    void exec_TYA(uint16_t = 0);
+    void exec_TSX(uint16_t = 0);
+    void exec_TXS(uint16_t = 0);
+    void exec_PHA(uint16_t = 0);
+    void exec_PHP(uint16_t = 0);
+    void exec_PLA(uint16_t = 0);
+    void exec_PLP(uint16_t = 0);
+    void exec_INX(uint16_t = 0);
+    void exec_INY(uint16_t = 0);
+    void exec_DEX(uint16_t = 0);
+    void exec_DEY(uint16_t = 0);
+    void exec_CLC(uint16_t = 0);
+    void exec_CLD(uint16_t = 0);
+    void exec_CLI(uint16_t = 0);
+    void exec_CLV(uint16_t = 0);
+    void exec_SEC(uint16_t = 0);
+    void exec_SED(uint16_t = 0);
+    void exec_SEI(uint16_t = 0);
+    void exec_BRK(uint16_t = 0);
+    void exec_NOP(uint16_t = 0);
+    void exec_RTI(uint16_t = 0);
+    void exec_RTS(uint16_t = 0);
+    void exec_ASL_A(uint16_t = 0);
+    void exec_LSR_A(uint16_t = 0);
+    void exec_ROL_A(uint16_t = 0);
+    void exec_ROR_A(uint16_t = 0);
+
 private:
     Memory* memory_;
     
     // Processor Status Flags
-    enum StatusFlag {
-        CARRY     = 0x01,  // Bit 0: Carry
-        ZERO      = 0x02,  // Bit 1: Zero
-        INTERRUPT = 0x04,  // Bit 2: Interrupt Disable
-        DECIMAL   = 0x08,  // Bit 3: Decimal Mode (không dùng trong NES)
-        BREAK     = 0x10,  // Bit 4: Break Command
-        UNUSED    = 0x20,  // Bit 5: Unused (luôn = 1)
-        OVERFLOW  = 0x40,  // Bit 6: Overflow
-        NEGATIVE  = 0x80   // Bit 7: Negative
+    enum class StatusFlag : uint8_t {
+        FLAG_CARRY     = 0x01,  // Bit 0: Carry
+        FLAG_ZERO      = 0x02,  // Bit 1: Zero
+        FLAG_INTERRUPT = 0x04,  // Bit 2: Interrupt Disable
+        FLAG_DECIMAL   = 0x08,  // Bit 3: Decimal Mode (không dùng trong NES)
+        FLAG_BREAK     = 0x10,  // Bit 4: Break Command
+        FLAG_UNUSED    = 0x20,  // Bit 5: Unused (luôn = 1)
+        FLAG_OVERFLOW  = 0x40,  // Bit 6: Overflow
+        FLAG_NEGATIVE  = 0x80   // Bit 7: Negative
     };
     
     // Helper functions cho flags
@@ -92,21 +176,8 @@ private:
     uint8_t pop();
     void push16(uint16_t value);
     uint16_t pop16();
-    
-    // Addressing modes
-    uint16_t addr_implied();
-    uint16_t addr_accumulator();
-    uint16_t addr_immediate();
-    uint16_t addr_zero_page();
-    uint16_t addr_zero_page_x();
-    uint16_t addr_zero_page_y();
-    uint16_t addr_absolute();
-    uint16_t addr_absolute_x();
-    uint16_t addr_absolute_y();
-    uint16_t addr_indirect();
-    uint16_t addr_indirect_x();
-    uint16_t addr_indirect_y();
-    uint16_t addr_relative();
+
+private:
     
     // Opcodes - Load/Store
     void LDA(uint16_t addr); // Load Accumulator
@@ -186,70 +257,6 @@ private:
     void NOP(); // No Operation
     void RTI(); // Return from Interrupt
     
-    // Execute opcode
-    void execute(uint8_t opcode);
-    
-    // Exec wrappers for opcode table
-    void exec_LDA(uint16_t addr);
-    void exec_LDX(uint16_t addr);
-    void exec_LDY(uint16_t addr);
-    void exec_STA(uint16_t addr);
-    void exec_STX(uint16_t addr);
-    void exec_STY(uint16_t addr);
-    void exec_AND(uint16_t addr);
-    void exec_EOR(uint16_t addr);
-    void exec_ORA(uint16_t addr);
-    void exec_BIT(uint16_t addr);
-    void exec_ADC(uint16_t addr);
-    void exec_SBC(uint16_t addr);
-    void exec_CMP(uint16_t addr);
-    void exec_CPX(uint16_t addr);
-    void exec_CPY(uint16_t addr);
-    void exec_INC(uint16_t addr);
-    void exec_DEC(uint16_t addr);
-    void exec_ASL(uint16_t addr);
-    void exec_LSR(uint16_t addr);
-    void exec_ROL(uint16_t addr);
-    void exec_ROR(uint16_t addr);
-    void exec_JMP(uint16_t addr);
-    void exec_JSR(uint16_t addr);
-    void exec_BCC(uint16_t addr);
-    void exec_BCS(uint16_t addr);
-    void exec_BEQ(uint16_t addr);
-    void exec_BMI(uint16_t addr);
-    void exec_BNE(uint16_t addr);
-    void exec_BPL(uint16_t addr);
-    void exec_BVC(uint16_t addr);
-    void exec_BVS(uint16_t addr);
-    void exec_TAX(uint16_t = 0);
-    void exec_TAY(uint16_t = 0);
-    void exec_TXA(uint16_t = 0);
-    void exec_TYA(uint16_t = 0);
-    void exec_TSX(uint16_t = 0);
-    void exec_TXS(uint16_t = 0);
-    void exec_PHA(uint16_t = 0);
-    void exec_PHP(uint16_t = 0);
-    void exec_PLA(uint16_t = 0);
-    void exec_PLP(uint16_t = 0);
-    void exec_INX(uint16_t = 0);
-    void exec_INY(uint16_t = 0);
-    void exec_DEX(uint16_t = 0);
-    void exec_DEY(uint16_t = 0);
-    void exec_CLC(uint16_t = 0);
-    void exec_CLD(uint16_t = 0);
-    void exec_CLI(uint16_t = 0);
-    void exec_CLV(uint16_t = 0);
-    void exec_SEC(uint16_t = 0);
-    void exec_SED(uint16_t = 0);
-    void exec_SEI(uint16_t = 0);
-    void exec_BRK(uint16_t = 0);
-    void exec_NOP(uint16_t = 0);
-    void exec_RTI(uint16_t = 0);
-    void exec_RTS(uint16_t = 0);
-    void exec_ASL_A(uint16_t = 0);
-    void exec_LSR_A(uint16_t = 0);
-    void exec_ROL_A(uint16_t = 0);
-    void exec_ROR_A(uint16_t = 0);
 };
 
 } // namespace nes

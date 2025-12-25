@@ -46,11 +46,13 @@ public:
      */
     void set_controller(int controller, uint8_t buttons);
 
-private:
+    // Public access cho testing (TODO: Remove sau khi có proper API)
     CPU cpu_;
+    Memory memory_;
+
+private:
     PPU ppu_;
     APU apu_;
-    Memory memory_;
     Cartridge cartridge_;
     
     uint8_t framebuffer_[256 * 240 * 4]; // RGBA
