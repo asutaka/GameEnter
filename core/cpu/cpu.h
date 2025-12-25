@@ -176,6 +176,9 @@ private:
     uint8_t pop();
     void push16(uint16_t value);
     uint16_t pop16();
+    
+    // Helper for reading 16-bit values from zero page with wraparound
+    uint16_t read16_zp(uint8_t address);
 
 private:
     

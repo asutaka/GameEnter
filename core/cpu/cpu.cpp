@@ -139,6 +139,14 @@ uint16_t CPU::pop16() {
     return (hi << 8) | lo;
 }
 
+// Read 16-bit value from zero page with wraparound
+// When reading from $FF, it reads $FF and $00 (not $FF and $100)
+uint16_t CPU::read16_zp(uint8_t address) {
+    uint8_t lo = read(address);
+    uint8_t hi = read((address + 1) & 0xFF);  // Wrap around in zero page
+    return (hi << 8) | lo;
+}
+
 // =====================
 // Addressing Modes
 // =====================
@@ -199,12 +207,14 @@ uint16_t CPU::addr_indirect() {
 
 uint16_t CPU::addr_indirect_x() {
     uint8_t ptr = read(PC++) + X;
-    return read16(ptr);
+    // Must use zero page wraparound when reading pointer
+    return read16_zp(ptr);
 }
 
 uint16_t CPU::addr_indirect_y() {
     uint8_t ptr = read(PC++);
-    uint16_t addr = read16(ptr);
+    // Must use zero page wraparound when reading pointer
+    uint16_t addr = read16_zp(ptr);
     return addr + Y;
 }
 
