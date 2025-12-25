@@ -52,7 +52,17 @@ target_link_libraries(nes_test PRIVATE
     nes_core
 )
 
+# Game ROM Test Application
+add_executable(game_test
+    desktop/game_test.cpp
+)
+
+target_link_libraries(game_test PRIVATE
+    nes_core
+)
+
 message(STATUS "Console test app: ENABLED")
+message(STATUS "Game ROM test app: ENABLED")
 
 # Desktop Application với SDL2 (Optional)
 find_package(SDL2 QUIET)
