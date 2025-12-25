@@ -114,11 +114,11 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"BRK", &CPU::exec_BRK, &CPU::addr_implied, 7, false},      // 0x00
     {"ORA", &CPU::exec_ORA, &CPU::addr_indirect_x, 6, false},   // 0x01
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x02 - Illegal
-    {"*SLO", &CPU::exec_NOP, &CPU::addr_indirect_x, 8, false},  // 0x03 - Illegal
+    {"*SLO", &CPU::exec_SLO, &CPU::addr_indirect_x, 8, false},  // 0x03 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page, 3, false},   // 0x04 - Illegal
     {"ORA", &CPU::exec_ORA, &CPU::addr_zero_page, 3, false},    // 0x05
     {"ASL", &CPU::exec_ASL, &CPU::addr_zero_page, 5, false},    // 0x06
-    {"*SLO", &CPU::exec_NOP, &CPU::addr_zero_page, 5, false},   // 0x07 - Illegal
+    {"*SLO", &CPU::exec_SLO, &CPU::addr_zero_page, 5, false},   // 0x07 - Illegal
     {"PHP", &CPU::exec_PHP, &CPU::addr_implied, 3, false},      // 0x08
     {"ORA", &CPU::exec_ORA, &CPU::addr_immediate, 2, false},    // 0x09
     {"ASL", &CPU::exec_ASL_A, &CPU::addr_accumulator, 2, false},// 0x0A
@@ -126,35 +126,35 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"*NOP", &CPU::exec_NOP, &CPU::addr_absolute, 4, false},    // 0x0C - Illegal
     {"ORA", &CPU::exec_ORA, &CPU::addr_absolute, 4, false},     // 0x0D
     {"ASL", &CPU::exec_ASL, &CPU::addr_absolute, 6, false},     // 0x0E
-    {"*SLO", &CPU::exec_NOP, &CPU::addr_absolute, 6, false},    // 0x0F - Illegal
+    {"*SLO", &CPU::exec_SLO, &CPU::addr_absolute, 6, false},    // 0x0F - Illegal
     
     // 0x10-0x1F
     {"BPL", &CPU::exec_BPL, &CPU::addr_relative, 2, true},      // 0x10
     {"ORA", &CPU::exec_ORA, &CPU::addr_indirect_y, 5, true},    // 0x11
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x12 - Illegal
-    {"*SLO", &CPU::exec_NOP, &CPU::addr_indirect_y, 8, false},  // 0x13 - Illegal
+    {"*SLO", &CPU::exec_SLO, &CPU::addr_indirect_y, 8, false},  // 0x13 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page_x, 4, false}, // 0x14 - Illegal
     {"ORA", &CPU::exec_ORA, &CPU::addr_zero_page_x, 4, false},  // 0x15
     {"ASL", &CPU::exec_ASL, &CPU::addr_zero_page_x, 6, false},  // 0x16
-    {"*SLO", &CPU::exec_NOP, &CPU::addr_zero_page_x, 6, false}, // 0x17 - Illegal
+    {"*SLO", &CPU::exec_SLO, &CPU::addr_zero_page_x, 6, false}, // 0x17 - Illegal
     {"CLC", &CPU::exec_CLC, &CPU::addr_implied, 2, false},      // 0x18
     {"ORA", &CPU::exec_ORA, &CPU::addr_absolute_y, 4, true},    // 0x19
     {"*NOP", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x1A - Illegal
-    {"*SLO", &CPU::exec_NOP, &CPU::addr_absolute_y, 7, false},  // 0x1B - Illegal
+    {"*SLO", &CPU::exec_SLO, &CPU::addr_absolute_y, 7, false},  // 0x1B - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_absolute_x, 4, true},   // 0x1C - Illegal
     {"ORA", &CPU::exec_ORA, &CPU::addr_absolute_x, 4, true},    // 0x1D
     {"ASL", &CPU::exec_ASL, &CPU::addr_absolute_x, 7, false},   // 0x1E
-    {"*SLO", &CPU::exec_NOP, &CPU::addr_absolute_x, 7, false},  // 0x1F - Illegal
+    {"*SLO", &CPU::exec_SLO, &CPU::addr_absolute_x, 7, false},  // 0x1F - Illegal
     
     // 0x20-0x2F
     {"JSR", &CPU::exec_JSR, &CPU::addr_absolute, 6, false},     // 0x20
     {"AND", &CPU::exec_AND, &CPU::addr_indirect_x, 6, false},   // 0x21
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x22 - Illegal
-    {"*RLA", &CPU::exec_NOP, &CPU::addr_indirect_x, 8, false},  // 0x23 - Illegal
+    {"*RLA", &CPU::exec_RLA, &CPU::addr_indirect_x, 8, false},  // 0x23 - Illegal
     {"BIT", &CPU::exec_BIT, &CPU::addr_zero_page, 3, false},    // 0x24
     {"AND", &CPU::exec_AND, &CPU::addr_zero_page, 3, false},    // 0x25
     {"ROL", &CPU::exec_ROL, &CPU::addr_zero_page, 5, false},    // 0x26
-    {"*RLA", &CPU::exec_NOP, &CPU::addr_zero_page, 5, false},   // 0x27 - Illegal
+    {"*RLA", &CPU::exec_RLA, &CPU::addr_zero_page, 5, false},   // 0x27 - Illegal
     {"PLP", &CPU::exec_PLP, &CPU::addr_implied, 4, false},      // 0x28
     {"AND", &CPU::exec_AND, &CPU::addr_immediate, 2, false},    // 0x29
     {"ROL", &CPU::exec_ROL_A, &CPU::addr_accumulator, 2, false},// 0x2A
@@ -162,35 +162,35 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"BIT", &CPU::exec_BIT, &CPU::addr_absolute, 4, false},     // 0x2C
     {"AND", &CPU::exec_AND, &CPU::addr_absolute, 4, false},     // 0x2D
     {"ROL", &CPU::exec_ROL, &CPU::addr_absolute, 6, false},     // 0x2E
-    {"*RLA", &CPU::exec_NOP, &CPU::addr_absolute, 6, false},    // 0x2F - Illegal
+    {"*RLA", &CPU::exec_RLA, &CPU::addr_absolute, 6, false},    // 0x2F - Illegal
     
     // 0x30-0x3F
     {"BMI", &CPU::exec_BMI, &CPU::addr_relative, 2, true},      // 0x30
     {"AND", &CPU::exec_AND, &CPU::addr_indirect_y, 5, true},    // 0x31
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x32 - Illegal
-    {"*RLA", &CPU::exec_NOP, &CPU::addr_indirect_y, 8, false},  // 0x33 - Illegal
+    {"*RLA", &CPU::exec_RLA, &CPU::addr_indirect_y, 8, false},  // 0x33 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page_x, 4, false}, // 0x34 - Illegal
     {"AND", &CPU::exec_AND, &CPU::addr_zero_page_x, 4, false},  // 0x35
     {"ROL", &CPU::exec_ROL, &CPU::addr_zero_page_x, 6, false},  // 0x36
-    {"*RLA", &CPU::exec_NOP, &CPU::addr_zero_page_x, 6, false}, // 0x37 - Illegal
+    {"*RLA", &CPU::exec_RLA, &CPU::addr_zero_page_x, 6, false}, // 0x37 - Illegal
     {"SEC", &CPU::exec_SEC, &CPU::addr_implied, 2, false},      // 0x38
     {"AND", &CPU::exec_AND, &CPU::addr_absolute_y, 4, true},    // 0x39
     {"*NOP", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x3A - Illegal
-    {"*RLA", &CPU::exec_NOP, &CPU::addr_absolute_y, 7, false},  // 0x3B - Illegal
+    {"*RLA", &CPU::exec_RLA, &CPU::addr_absolute_y, 7, false},  // 0x3B - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_absolute_x, 4, true},   // 0x3C - Illegal
     {"AND", &CPU::exec_AND, &CPU::addr_absolute_x, 4, true},    // 0x3D
     {"ROL", &CPU::exec_ROL, &CPU::addr_absolute_x, 7, false},   // 0x3E
-    {"*RLA", &CPU::exec_NOP, &CPU::addr_absolute_x, 7, false},  // 0x3F - Illegal
+    {"*RLA", &CPU::exec_RLA, &CPU::addr_absolute_x, 7, false},  // 0x3F - Illegal
     
     // 0x40-0x4F
     {"RTI", &CPU::exec_RTI, &CPU::addr_implied, 6, false},      // 0x40
     {"EOR", &CPU::exec_EOR, &CPU::addr_indirect_x, 6, false},   // 0x41
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x42 - Illegal
-    {"*SRE", &CPU::exec_NOP, &CPU::addr_indirect_x, 8, false},  // 0x43 - Illegal
+    {"*SRE", &CPU::exec_SRE, &CPU::addr_indirect_x, 8, false},  // 0x43 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page, 3, false},   // 0x44 - Illegal
     {"EOR", &CPU::exec_EOR, &CPU::addr_zero_page, 3, false},    // 0x45
     {"LSR", &CPU::exec_LSR, &CPU::addr_zero_page, 5, false},    // 0x46
-    {"*SRE", &CPU::exec_NOP, &CPU::addr_zero_page, 5, false},   // 0x47 - Illegal
+    {"*SRE", &CPU::exec_SRE, &CPU::addr_zero_page, 5, false},   // 0x47 - Illegal
     {"PHA", &CPU::exec_PHA, &CPU::addr_implied, 3, false},      // 0x48
     {"EOR", &CPU::exec_EOR, &CPU::addr_immediate, 2, false},    // 0x49
     {"LSR", &CPU::exec_LSR_A, &CPU::addr_accumulator, 2, false},// 0x4A
@@ -198,35 +198,35 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"JMP", &CPU::exec_JMP, &CPU::addr_absolute, 3, false},     // 0x4C
     {"EOR", &CPU::exec_EOR, &CPU::addr_absolute, 4, false},     // 0x4D
     {"LSR", &CPU::exec_LSR, &CPU::addr_absolute, 6, false},     // 0x4E
-    {"*SRE", &CPU::exec_NOP, &CPU::addr_absolute, 6, false},    // 0x4F - Illegal
+    {"*SRE", &CPU::exec_SRE, &CPU::addr_absolute, 6, false},    // 0x4F - Illegal
     
     // 0x50-0x5F
     {"BVC", &CPU::exec_BVC, &CPU::addr_relative, 2, true},      // 0x50
     {"EOR", &CPU::exec_EOR, &CPU::addr_indirect_y, 5, true},    // 0x51
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x52 - Illegal
-    {"*SRE", &CPU::exec_NOP, &CPU::addr_indirect_y, 8, false},  // 0x53 - Illegal
+    {"*SRE", &CPU::exec_SRE, &CPU::addr_indirect_y, 8, false},  // 0x53 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page_x, 4, false}, // 0x54 - Illegal
     {"EOR", &CPU::exec_EOR, &CPU::addr_zero_page_x, 4, false},  // 0x55
     {"LSR", &CPU::exec_LSR, &CPU::addr_zero_page_x, 6, false},  // 0x56
-    {"*SRE", &CPU::exec_NOP, &CPU::addr_zero_page_x, 6, false}, // 0x57 - Illegal
+    {"*SRE", &CPU::exec_SRE, &CPU::addr_zero_page_x, 6, false}, // 0x57 - Illegal
     {"CLI", &CPU::exec_CLI, &CPU::addr_implied, 2, false},      // 0x58
     {"EOR", &CPU::exec_EOR, &CPU::addr_absolute_y, 4, true},    // 0x59
     {"*NOP", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x5A - Illegal
-    {"*SRE", &CPU::exec_NOP, &CPU::addr_absolute_y, 7, false},  // 0x5B - Illegal
+    {"*SRE", &CPU::exec_SRE, &CPU::addr_absolute_y, 7, false},  // 0x5B - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_absolute_x, 4, true},   // 0x5C - Illegal
     {"EOR", &CPU::exec_EOR, &CPU::addr_absolute_x, 4, true},    // 0x5D
     {"LSR", &CPU::exec_LSR, &CPU::addr_absolute_x, 7, false},   // 0x5E
-    {"*SRE", &CPU::exec_NOP, &CPU::addr_absolute_x, 7, false},  // 0x5F - Illegal
+    {"*SRE", &CPU::exec_SRE, &CPU::addr_absolute_x, 7, false},  // 0x5F - Illegal
     
     // 0x60-0x6F
     {"RTS", &CPU::exec_RTS, &CPU::addr_implied, 6, false},      // 0x60
     {"ADC", &CPU::exec_ADC, &CPU::addr_indirect_x, 6, false},   // 0x61
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x62 - Illegal
-    {"*RRA", &CPU::exec_NOP, &CPU::addr_indirect_x, 8, false},  // 0x63 - Illegal
+    {"*RRA", &CPU::exec_RRA, &CPU::addr_indirect_x, 8, false},  // 0x63 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page, 3, false},   // 0x64 - Illegal
     {"ADC", &CPU::exec_ADC, &CPU::addr_zero_page, 3, false},    // 0x65
     {"ROR", &CPU::exec_ROR, &CPU::addr_zero_page, 5, false},    // 0x66
-    {"*RRA", &CPU::exec_NOP, &CPU::addr_zero_page, 5, false},   // 0x67 - Illegal
+    {"*RRA", &CPU::exec_RRA, &CPU::addr_zero_page, 5, false},   // 0x67 - Illegal
     {"PLA", &CPU::exec_PLA, &CPU::addr_implied, 4, false},      // 0x68
     {"ADC", &CPU::exec_ADC, &CPU::addr_immediate, 2, false},    // 0x69
     {"ROR", &CPU::exec_ROR_A, &CPU::addr_accumulator, 2, false},// 0x6A
@@ -234,35 +234,35 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"JMP", &CPU::exec_JMP, &CPU::addr_indirect, 5, false},     // 0x6C
     {"ADC", &CPU::exec_ADC, &CPU::addr_absolute, 4, false},     // 0x6D
     {"ROR", &CPU::exec_ROR, &CPU::addr_absolute, 6, false},     // 0x6E
-    {"*RRA", &CPU::exec_NOP, &CPU::addr_absolute, 6, false},    // 0x6F - Illegal
+    {"*RRA", &CPU::exec_RRA, &CPU::addr_absolute, 6, false},    // 0x6F - Illegal
     
     // 0x70-0x7F
     {"BVS", &CPU::exec_BVS, &CPU::addr_relative, 2, true},      // 0x70
     {"ADC", &CPU::exec_ADC, &CPU::addr_indirect_y, 5, true},    // 0x71
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x72 - Illegal
-    {"*RRA", &CPU::exec_NOP, &CPU::addr_indirect_y, 8, false},  // 0x73 - Illegal
+    {"*RRA", &CPU::exec_RRA, &CPU::addr_indirect_y, 8, false},  // 0x73 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page_x, 4, false}, // 0x74 - Illegal
     {"ADC", &CPU::exec_ADC, &CPU::addr_zero_page_x, 4, false},  // 0x75
     {"ROR", &CPU::exec_ROR, &CPU::addr_zero_page_x, 6, false},  // 0x76
-    {"*RRA", &CPU::exec_NOP, &CPU::addr_zero_page_x, 6, false}, // 0x77 - Illegal
+    {"*RRA", &CPU::exec_RRA, &CPU::addr_zero_page_x, 6, false}, // 0x77 - Illegal
     {"SEI", &CPU::exec_SEI, &CPU::addr_implied, 2, false},      // 0x78
     {"ADC", &CPU::exec_ADC, &CPU::addr_absolute_y, 4, true},    // 0x79
     {"*NOP", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0x7A - Illegal
-    {"*RRA", &CPU::exec_NOP, &CPU::addr_absolute_y, 7, false},  // 0x7B - Illegal
+    {"*RRA", &CPU::exec_RRA, &CPU::addr_absolute_y, 7, false},  // 0x7B - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_absolute_x, 4, true},   // 0x7C - Illegal
     {"ADC", &CPU::exec_ADC, &CPU::addr_absolute_x, 4, true},    // 0x7D
     {"ROR", &CPU::exec_ROR, &CPU::addr_absolute_x, 7, false},   // 0x7E
-    {"*RRA", &CPU::exec_NOP, &CPU::addr_absolute_x, 7, false},  // 0x7F - Illegal
+    {"*RRA", &CPU::exec_RRA, &CPU::addr_absolute_x, 7, false},  // 0x7F - Illegal
     
     // 0x80-0x8F
     {"*NOP", &CPU::exec_NOP, &CPU::addr_immediate, 2, false},   // 0x80 - Illegal
     {"STA", &CPU::exec_STA, &CPU::addr_indirect_x, 6, false},   // 0x81
     {"*NOP", &CPU::exec_NOP, &CPU::addr_immediate, 2, false},   // 0x82 - Illegal
-    {"*SAX", &CPU::exec_NOP, &CPU::addr_indirect_x, 6, false},  // 0x83 - Illegal
+    {"*SAX", &CPU::exec_SAX, &CPU::addr_indirect_x, 6, false},  // 0x83 - Illegal
     {"STY", &CPU::exec_STY, &CPU::addr_zero_page, 3, false},    // 0x84
     {"STA", &CPU::exec_STA, &CPU::addr_zero_page, 3, false},    // 0x85
     {"STX", &CPU::exec_STX, &CPU::addr_zero_page, 3, false},    // 0x86
-    {"*SAX", &CPU::exec_NOP, &CPU::addr_zero_page, 3, false},   // 0x87 - Illegal
+    {"*SAX", &CPU::exec_SAX, &CPU::addr_zero_page, 3, false},   // 0x87 - Illegal
     {"DEY", &CPU::exec_DEY, &CPU::addr_implied, 2, false},      // 0x88
     {"*NOP", &CPU::exec_NOP, &CPU::addr_immediate, 2, false},   // 0x89 - Illegal
     {"TXA", &CPU::exec_TXA, &CPU::addr_implied, 2, false},      // 0x8A
@@ -270,7 +270,7 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"STY", &CPU::exec_STY, &CPU::addr_absolute, 4, false},     // 0x8C
     {"STA", &CPU::exec_STA, &CPU::addr_absolute, 4, false},     // 0x8D
     {"STX", &CPU::exec_STX, &CPU::addr_absolute, 4, false},     // 0x8E
-    {"*SAX", &CPU::exec_NOP, &CPU::addr_absolute, 4, false},    // 0x8F - Illegal
+    {"*SAX", &CPU::exec_SAX, &CPU::addr_absolute, 4, false},    // 0x8F - Illegal
     
     // 0x90-0x9F
     {"BCC", &CPU::exec_BCC, &CPU::addr_relative, 2, true},      // 0x90
@@ -280,7 +280,7 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"STY", &CPU::exec_STY, &CPU::addr_zero_page_x, 4, false},  // 0x94
     {"STA", &CPU::exec_STA, &CPU::addr_zero_page_x, 4, false},  // 0x95
     {"STX", &CPU::exec_STX, &CPU::addr_zero_page_y, 4, false},  // 0x96
-    {"*SAX", &CPU::exec_NOP, &CPU::addr_zero_page_y, 4, false}, // 0x97 - Illegal
+    {"*SAX", &CPU::exec_SAX, &CPU::addr_zero_page_y, 4, false}, // 0x97 - Illegal
     {"TYA", &CPU::exec_TYA, &CPU::addr_implied, 2, false},      // 0x98
     {"STA", &CPU::exec_STA, &CPU::addr_absolute_y, 5, false},   // 0x99
     {"TXS", &CPU::exec_TXS, &CPU::addr_implied, 2, false},      // 0x9A
@@ -330,11 +330,11 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"CPY", &CPU::exec_CPY, &CPU::addr_immediate, 2, false},    // 0xC0
     {"CMP", &CPU::exec_CMP, &CPU::addr_indirect_x, 6, false},   // 0xC1
     {"*NOP", &CPU::exec_NOP, &CPU::addr_immediate, 2, false},   // 0xC2 - Illegal
-    {"*DCP", &CPU::exec_NOP, &CPU::addr_indirect_x, 8, false},  // 0xC3 - Illegal
+    {"*DCP", &CPU::exec_DCP, &CPU::addr_indirect_x, 8, false},  // 0xC3 - Illegal
     {"CPY", &CPU::exec_CPY, &CPU::addr_zero_page, 3, false},    // 0xC4
     {"CMP", &CPU::exec_CMP, &CPU::addr_zero_page, 3, false},    // 0xC5
     {"DEC", &CPU::exec_DEC, &CPU::addr_zero_page, 5, false},    // 0xC6
-    {"*DCP", &CPU::exec_NOP, &CPU::addr_zero_page, 5, false},   // 0xC7 - Illegal
+    {"*DCP", &CPU::exec_DCP, &CPU::addr_zero_page, 5, false},   // 0xC7 - Illegal
     {"INY", &CPU::exec_INY, &CPU::addr_implied, 2, false},      // 0xC8
     {"CMP", &CPU::exec_CMP, &CPU::addr_immediate, 2, false},    // 0xC9
     {"DEX", &CPU::exec_DEX, &CPU::addr_implied, 2, false},      // 0xCA
@@ -342,35 +342,35 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"CPY", &CPU::exec_CPY, &CPU::addr_absolute, 4, false},     // 0xCC
     {"CMP", &CPU::exec_CMP, &CPU::addr_absolute, 4, false},     // 0xCD
     {"DEC", &CPU::exec_DEC, &CPU::addr_absolute, 6, false},     // 0xCE
-    {"*DCP", &CPU::exec_NOP, &CPU::addr_absolute, 6, false},    // 0xCF - Illegal
+    {"*DCP", &CPU::exec_DCP, &CPU::addr_absolute, 6, false},    // 0xCF - Illegal
     
     // 0xD0-0xDF
     {"BNE", &CPU::exec_BNE, &CPU::addr_relative, 2, true},      // 0xD0
     {"CMP", &CPU::exec_CMP, &CPU::addr_indirect_y, 5, true},    // 0xD1
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0xD2 - Illegal
-    {"*DCP", &CPU::exec_NOP, &CPU::addr_indirect_y, 8, false},  // 0xD3 - Illegal
+    {"*DCP", &CPU::exec_DCP, &CPU::addr_indirect_y, 8, false},  // 0xD3 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page_x, 4, false}, // 0xD4 - Illegal
     {"CMP", &CPU::exec_CMP, &CPU::addr_zero_page_x, 4, false},  // 0xD5
     {"DEC", &CPU::exec_DEC, &CPU::addr_zero_page_x, 6, false},  // 0xD6
-    {"*DCP", &CPU::exec_NOP, &CPU::addr_zero_page_x, 6, false}, // 0xD7 - Illegal
+    {"*DCP", &CPU::exec_DCP, &CPU::addr_zero_page_x, 6, false}, // 0xD7 - Illegal
     {"CLD", &CPU::exec_CLD, &CPU::addr_implied, 2, false},      // 0xD8
     {"CMP", &CPU::exec_CMP, &CPU::addr_absolute_y, 4, true},    // 0xD9
     {"*NOP", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0xDA - Illegal
-    {"*DCP", &CPU::exec_NOP, &CPU::addr_absolute_y, 7, false},  // 0xDB - Illegal
+    {"*DCP", &CPU::exec_DCP, &CPU::addr_absolute_y, 7, false},  // 0xDB - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_absolute_x, 4, true},   // 0xDC - Illegal
     {"CMP", &CPU::exec_CMP, &CPU::addr_absolute_x, 4, true},    // 0xDD
     {"DEC", &CPU::exec_DEC, &CPU::addr_absolute_x, 7, false},   // 0xDE
-    {"*DCP", &CPU::exec_NOP, &CPU::addr_absolute_x, 7, false},  // 0xDF - Illegal
+    {"*DCP", &CPU::exec_DCP, &CPU::addr_absolute_x, 7, false},  // 0xDF - Illegal
     
     // 0xE0-0xEF
     {"CPX", &CPU::exec_CPX, &CPU::addr_immediate, 2, false},    // 0xE0
     {"SBC", &CPU::exec_SBC, &CPU::addr_indirect_x, 6, false},   // 0xE1
     {"*NOP", &CPU::exec_NOP, &CPU::addr_immediate, 2, false},   // 0xE2 - Illegal
-    {"*ISC", &CPU::exec_NOP, &CPU::addr_indirect_x, 8, false},  // 0xE3 - Illegal
+    {"*ISC", &CPU::exec_ISC, &CPU::addr_indirect_x, 8, false},  // 0xE3 - Illegal
     {"CPX", &CPU::exec_CPX, &CPU::addr_zero_page, 3, false},    // 0xE4
     {"SBC", &CPU::exec_SBC, &CPU::addr_zero_page, 3, false},    // 0xE5
     {"INC", &CPU::exec_INC, &CPU::addr_zero_page, 5, false},    // 0xE6
-    {"*ISC", &CPU::exec_NOP, &CPU::addr_zero_page, 5, false},   // 0xE7 - Illegal
+    {"*ISC", &CPU::exec_ISC, &CPU::addr_zero_page, 5, false},   // 0xE7 - Illegal
     {"INX", &CPU::exec_INX, &CPU::addr_implied, 2, false},      // 0xE8
     {"SBC", &CPU::exec_SBC, &CPU::addr_immediate, 2, false},    // 0xE9
     {"NOP", &CPU::exec_NOP, &CPU::addr_implied, 2, false},      // 0xEA
@@ -378,25 +378,25 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
     {"CPX", &CPU::exec_CPX, &CPU::addr_absolute, 4, false},     // 0xEC
     {"SBC", &CPU::exec_SBC, &CPU::addr_absolute, 4, false},     // 0xED
     {"INC", &CPU::exec_INC, &CPU::addr_absolute, 6, false},     // 0xEE
-    {"*ISC", &CPU::exec_NOP, &CPU::addr_absolute, 6, false},    // 0xEF - Illegal
+    {"*ISC", &CPU::exec_ISC, &CPU::addr_absolute, 6, false},    // 0xEF - Illegal
     
     // 0xF0-0xFF
     {"BEQ", &CPU::exec_BEQ, &CPU::addr_relative, 2, true},      // 0xF0
     {"SBC", &CPU::exec_SBC, &CPU::addr_indirect_y, 5, true},    // 0xF1
     {"*KIL", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0xF2 - Illegal
-    {"*ISC", &CPU::exec_NOP, &CPU::addr_indirect_y, 8, false},  // 0xF3 - Illegal
+    {"*ISC", &CPU::exec_ISC, &CPU::addr_indirect_y, 8, false},  // 0xF3 - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_zero_page_x, 4, false}, // 0xF4 - Illegal
     {"SBC", &CPU::exec_SBC, &CPU::addr_zero_page_x, 4, false},  // 0xF5
     {"INC", &CPU::exec_INC, &CPU::addr_zero_page_x, 6, false},  // 0xF6
-    {"*ISC", &CPU::exec_NOP, &CPU::addr_zero_page_x, 6, false}, // 0xF7 - Illegal
+    {"*ISC", &CPU::exec_ISC, &CPU::addr_zero_page_x, 6, false}, // 0xF7 - Illegal
     {"SED", &CPU::exec_SED, &CPU::addr_implied, 2, false},      // 0xF8
     {"SBC", &CPU::exec_SBC, &CPU::addr_absolute_y, 4, true},    // 0xF9
     {"*NOP", &CPU::exec_NOP, &CPU::addr_implied, 2, false},     // 0xFA - Illegal
-    {"*ISC", &CPU::exec_NOP, &CPU::addr_absolute_y, 7, false},  // 0xFB - Illegal
+    {"*ISC", &CPU::exec_ISC, &CPU::addr_absolute_y, 7, false},  // 0xFB - Illegal
     {"*NOP", &CPU::exec_NOP, &CPU::addr_absolute_x, 4, true},   // 0xFC - Illegal
     {"SBC", &CPU::exec_SBC, &CPU::addr_absolute_x, 4, true},    // 0xFD
     {"INC", &CPU::exec_INC, &CPU::addr_absolute_x, 7, false},   // 0xFE
-    {"*ISC", &CPU::exec_NOP, &CPU::addr_absolute_x, 7, false},  // 0xFF - Illegal
+    {"*ISC", &CPU::exec_ISC, &CPU::addr_absolute_x, 7, false},  // 0xFF - Illegal
 }};
 
 // Execute opcode mới sử dụng table
