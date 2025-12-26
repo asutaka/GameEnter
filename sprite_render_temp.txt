@@ -1,0 +1,20 @@
+    if (mask_.show_sprites) {
+        for (int i = 0; i < sprite_count_ && i < 8; i++) {
+            int sprite_x_pos = cycle_ - 1 - sprite_shifters_[i].x;
+            
+            if (sprite_x_pos >= 0 && sprite_x_pos < 8) {
+                uint8_t bit_mask = 0x80 >> sprite_x_pos;
+                
+                uint8_t p0 = (sprite_shifters_[i].pattern_lo & bit_mask) ? 1 : 0;
+                uint8_t p1 = (sprite_shifters_[i].pattern_hi & bit_mask) ? 1 : 0;
+                uint8_t pixel = (p1 << 1) | p0;
+                
+                if (pixel != 0) {
+                    sprite_palette = sprite_shifters_[i].attributes & 0x03;
+                    sprite_pixel = pixel;
+                    sprite_priority = (sprite_shifters_[i].attributes & 0x20) != 0;
+                    break;
+                }
+            }
+        }
+    }

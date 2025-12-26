@@ -359,8 +359,25 @@ void PPU::render_pixel() {
     bool sprite_priority = false;
     
     if (mask_.show_sprites) {
-        // TODO: Implement sprite rendering
+    for (int i = 0; i < sprite_count_ && i < 8; i++) {
+        int sprite_x_pos = cycle_ - 1 - sprite_shifters_[i].x;
+        
+        if (sprite_x_pos >= 0 && sprite_x_pos < 8) {
+            uint8_t bit_mask = 0x80 >> sprite_x_pos;
+            
+            uint8_t p0 = (sprite_shifters_[i].pattern_lo & bit_mask) ? 1 : 0;
+            uint8_t p1 = (sprite_shifters_[i].pattern_hi & bit_mask) ? 1 : 0;
+            uint8_t pixel = (p1 << 1) | p0;
+            
+            if (pixel != 0) {
+                sprite_palette = sprite_shifters_[i].attributes & 0x03;
+                sprite_pixel = pixel;
+                sprite_priority = (sprite_shifters_[i].attributes & 0x20) != 0;
+                break;
+            }
+        }
     }
+}
     
     // Priority and final pixel
     uint8_t final_pixel = 0;
@@ -417,16 +434,133 @@ void PPU::render_pixel() {
 }
 
 void PPU::fetch_background_tile() {
-    // TODO: Implement background tile fetching
-    // This is complex and needs proper implementation
+    if (!mask_.show_bg && !mask_.show_sprites) {
+        return;
+    }
+    
+    if (scanline_ >= 240 && scanline_ != 261) {
+        return;
+    }
+    
+    uint16_t nametable_addr = 0x2000 | (v_ & 0x0FFF);
+    uint8_t nametable_byte = ppu_read(nametable_addr);
+    
+    uint16_t attribute_addr = 0x23C0 | (v_ & 0x0C00) |
+                              ((v_ >> 4) & 0x38) | ((v_ >> 2) & 0x07);
+    uint8_t attribute_byte = ppu_read(attribute_addr);
+    
+    uint8_t shift = ((v_ & 0x02) | ((v_ & 0x40) >> 4));
+    uint8_t palette_bits = (attribute_byte >> shift) & 0x03;
+    
+    uint16_t pattern_addr = (ctrl_.bg_pattern ? 0x1000 : 0x0000);
+    pattern_addr += (nametable_byte * 16) + ((v_ >> 12) & 0x07);
+    
+    uint8_t pattern_lo = ppu_read(pattern_addr);
+    uint8_t pattern_hi = ppu_read(pattern_addr + 8);
+    
+    bg_shifters_.pattern_lo = (bg_shifters_.pattern_lo & 0xFF00) | pattern_lo;
+    bg_shifters_.pattern_hi = (bg_shifters_.pattern_hi & 0xFF00) | pattern_hi;
+    
+    bg_shifters_.attribute_lo = (bg_shifters_.attribute_lo & 0xFF00) | 
+                                 ((palette_bits & 0x01) ? 0xFF : 0x00);
+    bg_shifters_.attribute_hi = (bg_shifters_.attribute_hi & 0xFF00) | 
+                                 ((palette_bits & 0x02) ? 0xFF : 0x00);
+    
+    if (cycle_ >= 1 && cycle_ <= 256) {
+        increment_scroll_x();
+    }
 }
 
 void PPU::evaluate_sprites() {
-    // TODO: Implement sprite evaluation
+    if (scanline_ >= 240) {
+        return;
+    }
+    
+    sprite_count_ = 0;
+    sprite_0_rendering_ = false;
+    
+    for (int i = 0; i < 64; i++) {
+        uint8_t sprite_y = oam_[i * 4 + 0];
+        uint8_t tile = oam_[i * 4 + 1];
+        uint8_t attr = oam_[i * 4 + 2];
+        uint8_t sprite_x = oam_[i * 4 + 3];
+        
+        int sprite_height = ctrl_.sprite_size ? 16 : 8;
+        int diff = scanline_ - sprite_y;
+        
+        if (diff >= 0 && diff < sprite_height) {
+            if (sprite_count_ < 8) {
+                secondary_oam_[sprite_count_ * 4 + 0] = sprite_y;
+                secondary_oam_[sprite_count_ * 4 + 1] = tile;
+                secondary_oam_[sprite_count_ * 4 + 2] = attr;
+                secondary_oam_[sprite_count_ * 4 + 3] = sprite_x;
+                
+                if (i == 0) {
+                    sprite_0_rendering_ = true;
+                }
+                
+                sprite_count_++;
+            } else {
+                status_.sprite_overflow = 1;
+                break;
+            }
+        }
+    }
 }
 
 void PPU::load_sprites() {
-    // TODO: Implement sprite loading
+    for (int i = 0; i < sprite_count_ && i < 8; i++) {
+        uint8_t sprite_y = secondary_oam_[i * 4 + 0];
+        uint8_t tile_index = secondary_oam_[i * 4 + 1];
+        uint8_t attributes = secondary_oam_[i * 4 + 2];
+        uint8_t sprite_x = secondary_oam_[i * 4 + 3];
+        
+        bool flip_horizontal = attributes & 0x40;
+        bool flip_vertical = attributes & 0x80;
+        
+        int sprite_row = scanline_ - sprite_y;
+        
+        if (flip_vertical) {
+            int sprite_height = ctrl_.sprite_size ? 16 : 8;
+            sprite_row = sprite_height - 1 - sprite_row;
+        }
+        
+        uint16_t pattern_addr;
+        
+        if (ctrl_.sprite_size == 0) {
+            pattern_addr = (ctrl_.sprite_pattern ?  0x1000 : 0x0000);
+            pattern_addr += tile_index * 16 + sprite_row;
+        } else {
+            pattern_addr = (tile_index & 0x01) ? 0x1000 : 0x0000;
+            tile_index &= 0xFE;
+            
+            if (sprite_row < 8) {
+                pattern_addr += tile_index * 16 + sprite_row;
+            } else {
+                pattern_addr += (tile_index + 1) * 16 + (sprite_row - 8);
+            }
+        }
+        
+        uint8_t pattern_lo = ppu_read(pattern_addr);
+        uint8_t pattern_hi = ppu_read(pattern_addr + 8);
+        
+        if (flip_horizontal) {
+            pattern_lo = ((pattern_lo & 0xF0) >> 4) | ((pattern_lo & 0x0F) << 4);
+            pattern_lo = ((pattern_lo & 0xCC) >> 2) | ((pattern_lo & 0x33) << 2);
+            pattern_lo = ((pattern_lo & 0xAA) >> 1) | ((pattern_lo & 0x55) << 1);
+            
+            pattern_hi = ((pattern_hi & 0xF0) >> 4) | ((pattern_hi & 0x0F) << 4);
+            pattern_hi = ((pattern_hi & 0xCC) >> 2) | ((pattern_hi & 0x33) << 2);
+            pattern_hi = ((pattern_hi & 0xAA) >> 1) | ((pattern_hi & 0x55) << 1);
+        }
+        
+        sprite_shifters_[i].y = sprite_y;
+        sprite_shifters_[i].tile_index = tile_index;
+        sprite_shifters_[i].attributes = attributes;
+        sprite_shifters_[i].x = sprite_x;
+        sprite_shifters_[i].pattern_lo = pattern_lo;
+        sprite_shifters_[i].pattern_hi = pattern_hi;
+    }
 }
 
 // ==================

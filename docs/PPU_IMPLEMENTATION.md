@@ -19,25 +19,6 @@
 - **OAM** (256 bytes) - 64 sprites × 4 bytes
 - **Palette RAM** (32 bytes) - Background + Sprite palettes
 - **Pattern Tables** - Access via cartridge CHR ROM
-
-#### 3. **NES Color Palette** ✅
-- 64 màu NTSC standard
-- Format ARGB (0xAARRGGBB)
-- Palette lookup implementation
-
-#### 4. **Rendering Pipeline** ⏳ 60%
-- ✅ Scanline/cycle timing (262 scanlines × 341 cycles)
-- ✅ VBlank detection & NMI triggering
-- ✅ Pixel rendering framework
-- ✅ Background shift registers
-- ⏳ Background tile fetching (TODO)
-- ⏳ Sprite evaluation (TODO)
-- ⏳ Sprite rendering (TODO)
-
-#### 5. **Scrolling** ✅
-- ✅ Horizontal scroll increment
-- ✅ Vertical scroll increment
-- ✅ Nametable switching
 - ✅ Position copying (pre-render)
 
 #### 6. **Framebuffer** ✅
