@@ -5,6 +5,8 @@
 
 // Include mapper implementations
 #include "mappers/mapper0.cpp"
+#include "mappers/mapper1.cpp"
+#include "mappers/mapper4.cpp"
 
 namespace nes {
 
@@ -127,12 +129,14 @@ Mapper* Cartridge::create_mapper() {
                               chr_rom_.data(), chr_rom_.size());
         
         case 1:
-            // TODO: Mapper 1 (MMC1)
-            return nullptr;
+            // Mapper 1 (MMC1) - Zelda, Metroid, Mega Man 2, etc.
+            return new Mapper1(prg_rom_.data(), prg_rom_.size(),
+                              chr_rom_.data(), chr_rom_.size());
         
         case 4:
-            // TODO: Mapper 4 (MMC3) - Cho Contra
-            return nullptr;
+            // Mapper 4 (MMC3) - Contra, Mega Man 3-6, SMB 2/3, etc.
+            return new Mapper4(prg_rom_.data(), prg_rom_.size(),
+                              chr_rom_.data(), chr_rom_.size());
         
         default:
             return nullptr;
@@ -173,6 +177,20 @@ void Cartridge::reset() {
     if (mapper_) {
         mapper_->reset();
     }
+}
+
+MirrorMode Cartridge::get_mirroring() const {
+    // Some mappers (like MMC1) can change mirroring dynamically
+    if (mapper_) {
+        MirrorMode mapper_mirror = mapper_->get_mirroring();
+        // If mapper returns HORIZONTAL (0), use cartridge's static mirroring
+        // Otherwise, use mapper's dynamic mirroring
+        if (static_cast<int>(mapper_mirror) != 0) {
+            return mapper_mirror;
+        }
+    }
+    // Default: use mirroring from iNES header
+    return mirror_mode_;
 }
 
 } // namespace nes

@@ -49,8 +49,9 @@ public:
     
     /**
      * @brief Get nametable mirroring mode
+     * Some mappers (like MMC1) can change mirroring dynamically
      */
-    MirrorMode get_mirroring() const { return mirror_mode_; }
+    MirrorMode get_mirroring() const;
 
 private:
     std::vector<uint8_t> prg_rom_;  // Program ROM
