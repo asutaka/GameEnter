@@ -35,6 +35,7 @@ add_library(nes_core STATIC
     core/mappers/mapper0.cpp
     core/mappers/mapper1.cpp
     core/mappers/mapper4.cpp
+    core/input/input.cpp
     core/emulator.cpp
 )
 

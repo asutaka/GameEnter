@@ -1,15 +1,14 @@
 #include "memory/memory.h"
 #include "ppu/ppu.h"
 #include "apu/apu.h"
+#include "input/input.h"
 #include "cartridge/cartridge.h"
 #include <cstring>
 
 namespace nes {
 
 Memory::Memory()
-    : ppu_(nullptr), apu_(nullptr), cartridge_(nullptr),
-      controller1_(0), controller2_(0),
-      controller1_snapshot_(0), controller2_snapshot_(0) {
+    : ppu_(nullptr), apu_(nullptr), input_(nullptr), cartridge_(nullptr) {
     ram_.fill(0);
 }
 
@@ -24,16 +23,16 @@ void Memory::connect_apu(APU* apu) {
     apu_ = apu;
 }
 
+void Memory::connect_input(Input* input) {
+    input_ = input;
+}
+
 void Memory::connect_cartridge(Cartridge* cartridge) {
     cartridge_ = cartridge;
 }
 
 void Memory::reset() {
     ram_.fill(0);
-    controller1_ = 0;
-    controller2_ = 0;
-    controller1_snapshot_ = 0;
-    controller2_snapshot_ = 0;
 }
 
 uint8_t Memory::read(uint16_t address) {
@@ -54,16 +53,18 @@ uint8_t Memory::read(uint16_t address) {
     if (address < 0x4018) {
         // Controller 1
         if (address == 0x4016) {
-            uint8_t value = (controller1_snapshot_ & 0x80) ? 1 : 0;
-            controller1_snapshot_ <<= 1;
-            return value;
+            if (input_) {
+                return input_->read_controller1();
+            }
+            return 0;
         }
         
         // Controller 2
         if (address == 0x4017) {
-            uint8_t value = (controller2_snapshot_ & 0x80) ? 1 : 0;
-            controller2_snapshot_ <<= 1;
-            return value;
+            if (input_) {
+                return input_->read_controller2();
+            }
+            return 0;
         }
         
         // APU
@@ -113,10 +114,8 @@ void Memory::write(uint16_t address, uint8_t value) {
         
         // Controller strobe ($4016)
         if (address == 0x4016) {
-            if (value & 0x01) {
-                // Snapshot controller state
-                controller1_snapshot_ = controller1_;
-                controller2_snapshot_ = controller2_;
+            if (input_) {
+                input_->write(value);
             }
             return;
         }

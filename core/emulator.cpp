@@ -10,6 +10,7 @@ Emulator::Emulator() : master_clock_(0) {
     cpu_.connect_memory(&memory_);
     memory_.connect_ppu(&ppu_);
     memory_.connect_apu(&apu_);
+    memory_.connect_input(&input_);
     memory_.connect_cartridge(&cartridge_);
     
     // PPU cần access cartridge để đọc CHR ROM (pattern tables)
@@ -27,6 +28,7 @@ void Emulator::reset() {
     cpu_.reset();
     ppu_.reset();
     apu_.reset();
+    input_.reset();
     memory_.reset();
     cartridge_.reset();
     master_clock_ = 0;
@@ -61,7 +63,15 @@ const uint8_t* Emulator::get_framebuffer() const {
 }
 
 void Emulator::set_controller(int controller, uint8_t buttons) {
-    // TODO: Implement controller input
+    // buttons: A, B, Select, Start, Up, Down, Left, Right (bits 0-7)
+    for (int i = 0; i < 8; i++) {
+        bool pressed = (buttons & (1 << i)) != 0;
+        if (controller == 0) {
+            input_.set_button_state(i, pressed);
+        } else if (controller == 1) {
+            // TODO: Controller 2 support if needed
+        }
+    }
 }
 
 } // namespace nes

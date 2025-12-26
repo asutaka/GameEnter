@@ -9,6 +9,7 @@ namespace nes {
 // Forward declarations
 class PPU;
 class APU;
+class Input;
 class Cartridge;
 
 /**
@@ -33,6 +34,7 @@ public:
      */
     void connect_ppu(PPU* ppu);
     void connect_apu(APU* apu);
+    void connect_input(Input* input);
     void connect_cartridge(Cartridge* cartridge);
     
     /**
@@ -57,13 +59,8 @@ private:
     // Connected components
     PPU* ppu_;
     APU* apu_;
+    Input* input_;
     Cartridge* cartridge_;
-    
-    // Controller state
-    uint8_t controller1_;
-    uint8_t controller2_;
-    uint8_t controller1_snapshot_;
-    uint8_t controller2_snapshot_;
 };
 
 } // namespace nes

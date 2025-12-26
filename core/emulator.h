@@ -4,6 +4,7 @@
 #include "cpu/cpu.h"
 #include "ppu/ppu.h"
 #include "apu/apu.h"
+#include "input/input.h"
 #include "memory/memory.h"
 #include "cartridge/cartridge.h"
 
@@ -49,6 +50,7 @@ public:
     // Public access cho testing (TODO: Remove sau khi có proper API)
     CPU cpu_;
     Memory memory_;
+    Input input_;
 
 private:
     PPU ppu_;
