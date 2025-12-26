@@ -9,7 +9,8 @@
 namespace nes {
 
 Cartridge::Cartridge() 
-    : mapper_(nullptr), mapper_number_(0), has_battery_(false) {
+    : mapper_(nullptr), mapper_number_(0), has_battery_(false), 
+      mirror_mode_(MirrorMode::HORIZONTAL) {
 }
 
 Cartridge::~Cartridge() {
@@ -48,9 +49,16 @@ bool Cartridge::load_from_file(const std::string& filename) {
     bool has_trainer = (flags6 & 0x04) != 0;
     has_battery_ = (flags6 & 0x02) != 0;
     bool four_screen = (flags6 & 0x08) != 0;
+    bool vertical_mirror = (flags6 & 0x01) != 0;
     
-    // Mirroring
-    // uint8_t mirroring = four_screen ? 2 : (flags6 & 0x01);
+    // Parse mirroring mode
+    if (four_screen) {
+        mirror_mode_ = MirrorMode::FOUR_SCREEN;
+    } else if (vertical_mirror) {
+        mirror_mode_ = MirrorMode::VERTICAL;
+    } else {
+        mirror_mode_ = MirrorMode::HORIZONTAL;
+    }
     
     std::cout << "=== iNES ROM Info ===" << std::endl;
     std::cout << "PRG ROM: " << (int)prg_rom_size << " x 16KB" << std::endl;
@@ -58,6 +66,16 @@ bool Cartridge::load_from_file(const std::string& filename) {
     std::cout << "Mapper: " << (int)mapper_number_ << std::endl;
     std::cout << "Battery: " << (has_battery_ ? "Yes" : "No") << std::endl;
     std::cout << "Trainer: " << (has_trainer ? "Yes" : "No") << std::endl;
+    
+    // Print mirroring mode
+    std::cout << "Mirroring: ";
+    switch (mirror_mode_) {
+        case MirrorMode::HORIZONTAL: std::cout << "Horizontal"; break;
+        case MirrorMode::VERTICAL: std::cout << "Vertical"; break;
+        case MirrorMode::FOUR_SCREEN: std::cout << "Four-Screen"; break;
+        case MirrorMode::SINGLE_SCREEN: std::cout << "Single-Screen"; break;
+    }
+    std::cout << std::endl;
     
     // Skip trainer nếu có (512 bytes)
     if (has_trainer) {

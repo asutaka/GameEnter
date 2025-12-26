@@ -107,6 +107,7 @@ private:
     uint8_t w_;         // Write toggle (1 bit)
     
     uint8_t read_buffer_;  // Data read buffer
+    uint8_t data_bus_;     // PPU data bus (for open bus behavior)
     
     // ==================
     // Memory
@@ -176,6 +177,17 @@ private:
     std::array<Sprite, 8> sprite_shifters_;
     int sprite_count_;
     bool sprite_0_rendering_;
+    
+    // ==================
+    // Timing Quirks
+    // ==================
+    
+    bool odd_frame_;  // Track odd/even frames for cycle skip quirk
+    
+    // Helper to check if rendering is enabled
+    bool rendering_enabled() const {
+        return mask_.show_bg || mask_.show_sprites;
+    }
     
     // ==================
     // Internal functions

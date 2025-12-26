@@ -10,6 +10,16 @@ namespace nes {
 class Mapper;
 
 /**
+ * @brief Nametable mirroring modes
+ */
+enum class MirrorMode {
+    HORIZONTAL,   // Vertical arrangement (Mario, Donkey Kong)
+    VERTICAL,     // Horizontal arrangement (some games)
+    FOUR_SCREEN,  // 4KB VRAM (rare)
+    SINGLE_SCREEN // One nametable (rare)
+};
+
+/**
  * @brief Cartridge (game ROM) loader và manager
  */
 class Cartridge {
@@ -36,6 +46,11 @@ public:
      * @brief Reset cartridge
      */
     void reset();
+    
+    /**
+     * @brief Get nametable mirroring mode
+     */
+    MirrorMode get_mirroring() const { return mirror_mode_; }
 
 private:
     std::vector<uint8_t> prg_rom_;  // Program ROM
@@ -46,6 +61,7 @@ private:
     
     uint8_t mapper_number_;
     bool has_battery_;
+    MirrorMode mirror_mode_;  // Nametable mirroring mode
     
     // Helper để tạo mapper phù hợp
     Mapper* create_mapper();

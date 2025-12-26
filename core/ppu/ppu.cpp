@@ -20,9 +20,10 @@ const uint32_t PPU::PALETTE_COLORS[64] = {
 PPU::PPU() 
     : scanline_(0), cycle_(0), frame_(0),
       nmi_occurred_(false), cartridge_(nullptr),
-      oam_addr_(0), read_buffer_(0),
+      oam_addr_(0), read_buffer_(0), data_bus_(0),
       v_(0), t_(0), x_(0), w_(0),
-      sprite_count_(0), sprite_0_rendering_(false) {
+      sprite_count_(0), sprite_0_rendering_(false),
+      odd_frame_(false) {
     
     // Initialize registers
     std::memset(&ctrl_, 0, sizeof(ctrl_));
@@ -127,7 +128,21 @@ bool PPU::step() {
         nmi_occurred_ = false;
     }
     
-    // Advance cycle
+    // ==================
+    // TIMING QUIRK: Odd Frame Skip
+    // ==================
+    // On odd frames, when rendering is enabled, skip from cycle 339 to 0
+    // This is a real NES hardware quirk that affects timing
+    if (scanline_ == 261 && cycle_ == 339 && odd_frame_ && rendering_enabled()) {
+        // Skip cycle 340 on odd frames
+        cycle_ = 0;
+        scanline_ = 0;
+        frame_++;
+        odd_frame_ = !odd_frame_;  // Toggle odd/even frame
+        return frame_complete;
+    }
+    
+    // Advance cycle normally
     cycle_++;
     if (cycle_ > 340) {
         cycle_ = 0;
@@ -136,6 +151,7 @@ bool PPU::step() {
         if (scanline_ > 261) {
             scanline_ = 0;
             frame_++;
+            odd_frame_ = !odd_frame_;  // Toggle odd/even frame
         }
     }
     
@@ -143,7 +159,7 @@ bool PPU::step() {
 }
 
 uint8_t PPU::read_register(uint16_t address) {
-    uint8_t value = 0;
+    uint8_t value = data_bus_;  // Default: return last bus value (open bus)
     
     switch (address & 0x0007) {
         case 0: // $2000 PPUCTRL - Write only
@@ -153,11 +169,14 @@ uint8_t PPU::read_register(uint16_t address) {
             break;
             
         case 2: // $2002 PPUSTATUS
+            // Status bits (7-5) + open bus (4-0)
             value = (status_.vblank << 7) | 
                     (status_.sprite_0_hit << 6) |
-                    (status_.sprite_overflow << 5);
+                    (status_.sprite_overflow << 5) |
+                    (data_bus_ & 0x1F);  // Lower 5 bits from bus
             status_.vblank = 0;  // Reading clears VBlank
             w_ = 0;              // Reset write toggle
+            data_bus_ = value;   // Update bus
             break;
             
         case 3: // $2003 OAMADDR - Write only
@@ -165,6 +184,7 @@ uint8_t PPU::read_register(uint16_t address) {
             
         case 4: // $2004 OAMDATA
             value = oam_[oam_addr_];
+            data_bus_ = value;  // Update bus
             break;
             
         case 5: // $2005 PPUSCROLL - Write only
@@ -180,7 +200,11 @@ uint8_t PPU::read_register(uint16_t address) {
             // Palette reads are not buffered
             if (v_ >= 0x3F00) {
                 value = read_buffer_;
+                // Fill buffer with mirrored nametable data
+                read_buffer_ = ppu_read(v_ & 0x2FFF);
             }
+            
+            data_bus_ = value;  // Update bus
             
             // Increment address
             v_ += ctrl_.vram_increment ? 32 : 1;
@@ -192,6 +216,8 @@ uint8_t PPU::read_register(uint16_t address) {
 }
 
 void PPU::write_register(uint16_t address, uint8_t value) {
+    data_bus_ = value;  // All writes update the data bus
+    
     switch (address & 0x0007) {
         case 0: // $2000 PPUCTRL
             *reinterpret_cast<uint8_t*>(&ctrl_) = value;
@@ -270,16 +296,57 @@ uint8_t PPU::ppu_read(uint16_t address) {
         }
     }
     else if (address < 0x3F00) {
-        // Nametables
+        // Nametables with proper mirroring
         address &= 0x0FFF;
         
-        // TODO: Mirroring (horizontal/vertical/four-screen)
-        // Hiện tại: horizontal mirroring
-        if (address >= 0x0800) {
-            address -= 0x0800;
+        if (!cartridge_) {
+            // No cartridge: default horizontal mirroring
+            if (address >= 0x0800) address -= 0x0800;
+            return vram_[address & 0x07FF];
         }
         
-        return vram_[address & 0x07FF];
+        // Get mirroring mode from cartridge
+        MirrorMode mirror = cartridge_->get_mirroring();
+        
+        switch (mirror) {
+            case MirrorMode::HORIZONTAL:
+                // Nametables 0,1 → same; 2,3 → same
+                // $2000-$23FF and $2400-$27FF mirror each other
+                // $2800-$2BFF and $2C00-$2FFF mirror each other
+                if (address >= 0x0800) {
+                    address -= 0x0800;
+                }
+                return vram_[address & 0x07FF];
+                
+            case MirrorMode::VERTICAL:
+                // Nametables 0,2 → same; 1,3 → same
+                // $2000-$23FF and $2800-$2BFF mirror each other
+                // $2400-$27FF and $2C00-$2FFF mirror each other
+                if (address >= 0x0800) {
+                    // Map $2800-$2FFF to $2000-$27FF
+                    address -= 0x0800;
+                }
+                // Map $2400-$27FF to $2000-$23FF + 0x0400
+                if (address >= 0x0400 && address < 0x0800) {
+                    address = (address - 0x0400) | 0x0400;
+                }
+                return vram_[address & 0x07FF];
+                
+            case MirrorMode::FOUR_SCREEN:
+                // All four nametables are separate (needs 4KB VRAM)
+                // For now, treat as horizontal (we only have 2KB)
+                if (address >= 0x0800) {
+                    address -= 0x0800;
+                }
+                return vram_[address & 0x07FF];
+                
+            case MirrorMode::SINGLE_SCREEN:
+                // All nametables map to same memory
+                return vram_[address & 0x03FF];
+                
+            default:
+                return vram_[address & 0x07FF];
+        }
     }
     else if (address < 0x4000) {
         // Palette RAM
@@ -306,14 +373,52 @@ void PPU::ppu_write(uint16_t address, uint8_t value) {
         }
     }
     else if (address < 0x3F00) {
-        // Nametables
+        // Nametables with proper mirroring
         address &= 0x0FFF;
         
-        if (address >= 0x0800) {
-            address -= 0x0800;
+        if (!cartridge_) {
+            // No cartridge: default horizontal mirroring
+            if (address >= 0x0800) address -= 0x0800;
+            vram_[address & 0x07FF] = value;
+            return;
         }
         
-        vram_[address & 0x07FF] = value;
+        // Get mirroring mode from cartridge
+        MirrorMode mirror = cartridge_->get_mirroring();
+        
+        switch (mirror) {
+            case MirrorMode::HORIZONTAL:
+                if (address >= 0x0800) {
+                    address -= 0x0800;
+                }
+                vram_[address & 0x07FF] = value;
+                break;
+                
+            case MirrorMode::VERTICAL:
+                if (address >= 0x0800) {
+                    address -= 0x0800;
+                }
+                if (address >= 0x0400 && address < 0x0800) {
+                    address = (address - 0x0400) | 0x0400;
+                }
+                vram_[address & 0x07FF] = value;
+                break;
+                
+            case MirrorMode::FOUR_SCREEN:
+                if (address >= 0x0800) {
+                    address -= 0x0800;
+                }
+                vram_[address & 0x07FF] = value;
+                break;
+                
+            case MirrorMode::SINGLE_SCREEN:
+                vram_[address & 0x03FF] = value;
+                break;
+                
+            default:
+                vram_[address & 0x07FF] = value;
+                break;
+        }
     }
     else if (address < 0x4000) {
         // Palette RAM
