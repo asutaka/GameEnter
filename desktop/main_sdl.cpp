@@ -41,6 +41,23 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Audio Specification
+    SDL_AudioSpec want, have;
+    SDL_zero(want);
+    want.freq = 44100;
+    want.format = AUDIO_F32;
+    want.channels = 1;
+    want.samples = 2048;
+    want.callback = NULL; // Use queue
+    
+    SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (audio_device == 0) {
+        std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
+        // Continue without audio
+    } else {
+        SDL_PauseAudioDevice(audio_device, 0); // Start playing
+    }
+
     // Create window
     SDL_Window* window = SDL_CreateWindow(
         "NES Emulator - C++ From Scratch",
@@ -87,6 +104,7 @@ int main(int argc, char* argv[]) {
         SDL_DestroyTexture(texture);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
+        if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
         SDL_Quit();
         return 1;
     }
@@ -132,6 +150,26 @@ int main(int argc, char* argv[]) {
 
         // Run one frame
         emu.run_frame();
+        
+        // Audio Output
+        if (audio_device != 0) {
+            const std::vector<float>& samples = emu.get_audio_samples();
+            if (!samples.empty()) {
+                // Queue audio
+                SDL_QueueAudio(audio_device, samples.data(), samples.size() * sizeof(float));
+                
+                // Simple sync: if queue is too large, skip a frame or delay?
+                // For now, let's just let it run. SDL handles buffering.
+                // If queue gets too big (latency), we might want to clear it or speed up.
+                // But with VSync enabled, it should be roughly synced.
+                
+                // Anti-latency: if queue > 0.1s, clear some?
+                // uint32_t queued_bytes = SDL_GetQueuedAudioSize(audio_device);
+                // if (queued_bytes > 44100 * sizeof(float) / 5) { // > 0.2s
+                //     SDL_ClearQueuedAudio(audio_device);
+                // }
+            }
+        }
 
         // Update texture
         const uint8_t* framebuffer = emu.get_framebuffer();
@@ -159,6 +197,7 @@ int main(int argc, char* argv[]) {
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
     SDL_Quit();
 
     return 0;

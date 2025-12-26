@@ -49,7 +49,11 @@ int CPU::step() {
     // Thực thi
     execute(opcode);
     
-    return cycles_remaining;
+    // Đã tiêu tốn 1 cycle cho bước hiện tại
+    cycles_remaining--;
+    total_cycles++;
+    
+    return 1;
 }
 
 void CPU::irq() {

@@ -46,6 +46,11 @@ public:
      * @param buttons Bit mask của buttons (A, B, Select, Start, Up, Down, Left, Right)
      */
     void set_controller(int controller, uint8_t buttons);
+    
+    /**
+     * @brief Get audio samples generated in the last frame
+     */
+    const std::vector<float>& get_audio_samples() const;
 
     // Public access cho testing (TODO: Remove sau khi có proper API)
     CPU cpu_;
@@ -58,6 +63,10 @@ private:
     Cartridge cartridge_;
     
     uint8_t framebuffer_[256 * 240 * 4]; // RGBA
+    
+    // Audio
+    std::vector<float> audio_samples_;
+    double audio_time_;
     
     // Đồng bộ CPU/PPU timing
     int master_clock_;

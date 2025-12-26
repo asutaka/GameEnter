@@ -1,9 +1,10 @@
 #include "emulator.h"
 #include <cstring>
+#include <cstdio> // For printf
 
 namespace nes {
 
-Emulator::Emulator() : master_clock_(0) {
+Emulator::Emulator() : master_clock_(0), audio_time_(0.0) {
     memset(framebuffer_, 0, sizeof(framebuffer_));
     
     // Kết nối các component
@@ -15,6 +16,9 @@ Emulator::Emulator() : master_clock_(0) {
     
     // PPU cần access cartridge để đọc CHR ROM (pattern tables)
     ppu_.connect_cartridge(&cartridge_);
+    
+    // APU cần access memory cho DMC
+    apu_.connect_memory(&memory_);
 }
 
 Emulator::~Emulator() {
@@ -32,6 +36,8 @@ void Emulator::reset() {
     memory_.reset();
     cartridge_.reset();
     master_clock_ = 0;
+    audio_time_ = 0.0;
+    audio_samples_.clear();
 }
 
 void Emulator::run_frame() {
@@ -42,9 +48,19 @@ void Emulator::run_frame() {
     const int CYCLES_PER_FRAME = 29781;
     int cycles = 0;
     
+    // Audio settings
+    const double CPU_FREQ = 1789773.0;
+    const double SAMPLE_RATE = 44100.0;
+    const double CYCLES_PER_SAMPLE = CPU_FREQ / SAMPLE_RATE;
+    
+    audio_samples_.clear();
+    
+    static int instruction_count = 0;
+    
     while (cycles < CYCLES_PER_FRAME) {
         // CPU step
         int cpu_cycles = cpu_.step();
+        
         cycles += cpu_cycles;
         
         // PPU step (3x faster than CPU)
@@ -52,8 +68,16 @@ void Emulator::run_frame() {
             ppu_.step();
         }
         
-        // APU step
-        apu_.step();
+        // APU step & Audio Sampling
+        for (int i = 0; i < cpu_cycles; i++) {
+            apu_.step();
+            
+            audio_time_ += 1.0;
+            if (audio_time_ >= CYCLES_PER_SAMPLE) {
+                audio_time_ -= CYCLES_PER_SAMPLE;
+                audio_samples_.push_back(apu_.get_sample());
+            }
+        }
     }
 }
 
@@ -72,6 +96,10 @@ void Emulator::set_controller(int controller, uint8_t buttons) {
             // TODO: Controller 2 support if needed
         }
     }
+}
+
+const std::vector<float>& Emulator::get_audio_samples() const {
+    return audio_samples_;
 }
 
 } // namespace nes
