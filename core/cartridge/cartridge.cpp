@@ -6,7 +6,10 @@
 // Include mapper implementations
 #include "mappers/mapper0.cpp"
 #include "mappers/mapper1.cpp"
+#include "mappers/mapper2.cpp"
+#include "mappers/mapper3.cpp"
 #include "mappers/mapper4.cpp"
+#include "mappers/mapper7.cpp"
 
 namespace nes {
 
@@ -133,9 +136,24 @@ Mapper* Cartridge::create_mapper() {
             return new Mapper1(prg_rom_.data(), prg_rom_.size(),
                               chr_rom_.data(), chr_rom_.size());
         
+        case 2:
+            // Mapper 2 (UxROM) - Mega Man 1, Castlevania, Duck Tales, etc.
+            return new Mapper2(prg_rom_.data(), prg_rom_.size(),
+                              chr_rom_.data(), chr_rom_.size());
+        
+        case 3:
+            // Mapper 3 (CNROM) - Solomon's Key, Arkanoid, Paperboy, etc.
+            return new Mapper3(prg_rom_.data(), prg_rom_.size(),
+                              chr_rom_.data(), chr_rom_.size());
+        
         case 4:
             // Mapper 4 (MMC3) - Contra, Mega Man 3-6, SMB 2/3, etc.
             return new Mapper4(prg_rom_.data(), prg_rom_.size(),
+                              chr_rom_.data(), chr_rom_.size());
+        
+        case 7:
+            // Mapper 7 (AxROM) - Battletoads, Wizards & Warriors, etc.
+            return new Mapper7(prg_rom_.data(), prg_rom_.size(),
                               chr_rom_.data(), chr_rom_.size());
         
         default:
