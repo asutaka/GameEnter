@@ -48,10 +48,30 @@ add_executable(nes_test
     desktop/main.cpp
     desktop/disassembler.cpp
 )
+target_link_libraries(nes_test PRIVATE nes_core)
 
-target_link_libraries(nes_test PRIVATE
-    nes_core
+# SDL2 Application (Real Emulator)
+include(FetchContent)
+
+FetchContent_Declare(
+  SDL2
+  URL https://github.com/libsdl-org/SDL/releases/download/release-2.28.5/SDL2-2.28.5.zip
 )
+
+FetchContent_MakeAvailable(SDL2)
+
+add_executable(nes_app
+    desktop/main_sdl.cpp
+)
+
+# SDL2 target name might be SDL2::SDL2 or SDL2-static depending on how it's built
+if(TARGET SDL2::SDL2)
+    target_link_libraries(nes_app PRIVATE nes_core SDL2::SDL2 SDL2::SDL2main)
+else()
+    target_link_libraries(nes_app PRIVATE nes_core SDL2 SDL2main)
+endif()
+
+
 
 # Game ROM Test Application
 add_executable(game_test
