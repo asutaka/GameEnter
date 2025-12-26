@@ -61,6 +61,9 @@ public:
     
     // Cycles còn lại của lệnh hiện tại
     int cycles_remaining;
+    
+    // Flag to track page boundary crossing
+    bool page_crossed_;
 
     // Friend declarations for opcode table
     friend struct OpcodeInfo;

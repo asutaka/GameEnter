@@ -33,6 +33,7 @@ void CPU::reset() {
     }
     
     cycles_remaining = 7; // Reset mất 7 cycles
+    page_crossed_ = false;
 }
 
 int CPU::step() {
@@ -180,15 +181,19 @@ uint16_t CPU::addr_absolute() {
 }
 
 uint16_t CPU::addr_absolute_x() {
-    uint16_t addr = read16(PC);
+    uint16_t base = read16(PC);
     PC += 2;
-    return addr + X;
+    uint16_t addr = base + X;
+    page_crossed_ = (base & 0xFF00) != (addr & 0xFF00);
+    return addr;
 }
 
 uint16_t CPU::addr_absolute_y() {
-    uint16_t addr = read16(PC);
+    uint16_t base = read16(PC);
     PC += 2;
-    return addr + Y;
+    uint16_t addr = base + Y;
+    page_crossed_ = (base & 0xFF00) != (addr & 0xFF00);
+    return addr;
 }
 
 uint16_t CPU::addr_indirect() {
@@ -214,8 +219,10 @@ uint16_t CPU::addr_indirect_x() {
 uint16_t CPU::addr_indirect_y() {
     uint8_t ptr = read(PC++);
     // Must use zero page wraparound when reading pointer
-    uint16_t addr = read16_zp(ptr);
-    return addr + Y;
+    uint16_t base = read16_zp(ptr);
+    uint16_t addr = base + Y;
+    page_crossed_ = (base & 0xFF00) != (addr & 0xFF00);
+    return addr;
 }
 
 uint16_t CPU::addr_relative() {
@@ -483,57 +490,81 @@ void CPU::RTS() {
 
 void CPU::BCC(uint16_t addr) {
     if (!get_flag(StatusFlag::FLAG_CARRY)) {
-        PC = addr;
         cycles_remaining++; // Branch taken: +1 cycle
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++; // Page cross: +1 cycle
+        }
+        PC = addr;
     }
 }
 
 void CPU::BCS(uint16_t addr) {
     if (get_flag(StatusFlag::FLAG_CARRY)) {
-        PC = addr;
         cycles_remaining++;
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++;
+        }
+        PC = addr;
     }
 }
 
 void CPU::BEQ(uint16_t addr) {
     if (get_flag(StatusFlag::FLAG_ZERO)) {
-        PC = addr;
         cycles_remaining++;
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++;
+        }
+        PC = addr;
     }
 }
 
 void CPU::BMI(uint16_t addr) {
     if (get_flag(StatusFlag::FLAG_NEGATIVE)) {
-        PC = addr;
         cycles_remaining++;
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++;
+        }
+        PC = addr;
     }
 }
 
 void CPU::BNE(uint16_t addr) {
     if (!get_flag(StatusFlag::FLAG_ZERO)) {
-        PC = addr;
         cycles_remaining++;
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++;
+        }
+        PC = addr;
     }
 }
 
 void CPU::BPL(uint16_t addr) {
     if (!get_flag(StatusFlag::FLAG_NEGATIVE)) {
-        PC = addr;
         cycles_remaining++;
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++;
+        }
+        PC = addr;
     }
 }
 
 void CPU::BVC(uint16_t addr) {
     if (!get_flag(StatusFlag::FLAG_OVERFLOW)) {
-        PC = addr;
         cycles_remaining++;
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++;
+        }
+        PC = addr;
     }
 }
 
 void CPU::BVS(uint16_t addr) {
     if (get_flag(StatusFlag::FLAG_OVERFLOW)) {
-        PC = addr;
         cycles_remaining++;
+        if ((PC & 0xFF00) != (addr & 0xFF00)) {
+            cycles_remaining++;
+        }
+        PC = addr;
     }
 }
 

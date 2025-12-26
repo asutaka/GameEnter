@@ -403,16 +403,22 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
 void CPU::execute(uint8_t opcode) {
     const OpcodeInfo& info = OPCODE_TABLE[opcode];
     
+    // Reset page crossed flag
+    page_crossed_ = false;
+    
     // Get address từ addressing mode
     uint16_t addr = (this->*info.addr_mode)();
     
-    // Execute instruction
-    (this->*info.execute)(addr);
-    
-    // Set cycles
+    // Set base cycles first
     cycles_remaining = info.cycles;
     
-    // TODO: Add page cross penalty if needed
+    // Execute instruction (may modify cycles_remaining, e.g., Branch)
+    (this->*info.execute)(addr);
+    
+    // Add page cross penalty if needed
+    if (info.page_cross_penalty && page_crossed_) {
+        cycles_remaining++;
+    }
 }
 
 } // namespace nes
