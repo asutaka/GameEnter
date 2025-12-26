@@ -70,9 +70,19 @@ target_link_libraries(ppu_test PRIVATE
     nes_core
 )
 
+# PPU Debug Tool
+add_executable(ppu_debug
+    desktop/ppu_debug.cpp
+)
+
+target_link_libraries(ppu_debug PRIVATE
+    nes_core
+)
+
 message(STATUS "Console test app: ENABLED")
 message(STATUS "Game ROM test app: ENABLED")
 message(STATUS "PPU test app: ENABLED")
+message(STATUS "PPU debug app: ENABLED")
 
 # Desktop Application với SDL2 (Optional)
 find_package(SDL2 QUIET)

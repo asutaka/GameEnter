@@ -11,6 +11,9 @@ Emulator::Emulator() : master_clock_(0) {
     memory_.connect_ppu(&ppu_);
     memory_.connect_apu(&apu_);
     memory_.connect_cartridge(&cartridge_);
+    
+    // PPU cần access cartridge để đọc CHR ROM (pattern tables)
+    ppu_.connect_cartridge(&cartridge_);
 }
 
 Emulator::~Emulator() {
@@ -53,7 +56,8 @@ void Emulator::run_frame() {
 }
 
 const uint8_t* Emulator::get_framebuffer() const {
-    return framebuffer_;
+    // Return PPU's framebuffer, not the local empty one
+    return ppu_.get_framebuffer();
 }
 
 void Emulator::set_controller(int controller, uint8_t buttons) {
