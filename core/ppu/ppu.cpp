@@ -71,19 +71,24 @@ bool PPU::step() {
     
     // Visible scanlines (0-239) and pre-render (261)
     if (scanline_ < 240 || scanline_ == 261) {
+        // Render pixel during visible cycles (MUST be before shifting)
+        if (cycle_ >= 1 && cycle_ <= 256) {
+            render_pixel();
+        }
+
         if (rendering) {
             if ((cycle_ >= 1 && cycle_ <= 256) || (cycle_ >= 321 && cycle_ <= 336)) {
-                update_shifters();
+                // Only shift during visible cycles and the FIRST part of pre-fetch (321-328)
+                // This ensures Tile 1 moves to High Byte, and Tile 2 stays in Low Byte.
+                if (cycle_ <= 256 || cycle_ <= 328) {
+                    update_shifters();
+                }
+                
                 // Fetch tile every 8 cycles (at cycles 1, 9, 17, 25, ...)
                 if (((cycle_ - 1) % 8) == 0) {
                     fetch_background_tile();
                 }
             }
-        }
-        
-        // Render pixel during visible cycles
-        if (cycle_ >= 1 && cycle_ <= 256) {
-            render_pixel();
         }
         
         if (rendering) {
