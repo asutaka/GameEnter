@@ -350,17 +350,17 @@ void PPU::render_pixel() {
     uint8_t sprite_palette = 0;
     bool sprite_priority = false;
     if (mask_.show_sprites) {
-        for (int i = 0; i < sprite_count_ && i < 8; i++) {
-            int diff = cycle_ - 1 - sprite_shifters_[i].x;
-            if (diff >= 0 && diff < 8) {
-                uint8_t bit_mask = 0x80 >> diff;
-                uint8_t p0 = (sprite_shifters_[i].pattern_lo & bit_mask) ? 1 : 0;
-                uint8_t p1 = (sprite_shifters_[i].pattern_hi & bit_mask) ? 1 : 0;
+        for (int i = 0; i < sprite_count_; i++) {
+            if (sprite_shifters_[i].x == 0) {
+                uint8_t p0 = (sprite_shifters_[i].pattern_lo & 0x80) ? 1 : 0;
+                uint8_t p1 = (sprite_shifters_[i].pattern_hi & 0x80) ? 1 : 0;
                 uint8_t pixel = (p1 << 1) | p0;
+                
                 if (pixel != 0) {
                     sprite_palette = sprite_shifters_[i].attributes & 0x03;
                     sprite_pixel = pixel;
                     sprite_priority = (sprite_shifters_[i].attributes & 0x20) != 0;
+                    
                     if (sprite_shifters_[i].is_sprite_0 && bg_pixel != 0 && cycle_ < 256) {
                         status_.sprite_0_hit = 1;
                     }
@@ -409,10 +409,10 @@ void PPU::fetch_background_tile() {
     uint8_t pat_lo = ppu_read(pat_addr);
     uint8_t pat_hi = ppu_read(pat_addr + 8);
     
-    bg_shifters_.pattern_lo = (bg_shifters_.pattern_lo & 0x00FF) | (pat_lo << 8);
-    bg_shifters_.pattern_hi = (bg_shifters_.pattern_hi & 0x00FF) | (pat_hi << 8);
-    bg_shifters_.attribute_lo = (bg_shifters_.attribute_lo & 0x00FF) | ((pal & 0x01) ? 0xFF00 : 0x0000);
-    bg_shifters_.attribute_hi = (bg_shifters_.attribute_hi & 0x00FF) | ((pal & 0x02) ? 0xFF00 : 0x0000);
+    bg_shifters_.pattern_lo = (bg_shifters_.pattern_lo & 0xFF00) | pat_lo;
+    bg_shifters_.pattern_hi = (bg_shifters_.pattern_hi & 0xFF00) | pat_hi;
+    bg_shifters_.attribute_lo = (bg_shifters_.attribute_lo & 0xFF00) | ((pal & 0x01) ? 0xFF : 0x00);
+    bg_shifters_.attribute_hi = (bg_shifters_.attribute_hi & 0xFF00) | ((pal & 0x02) ? 0xFF : 0x00);
     
     if (cycle_ >= 1 && cycle_ <= 256) increment_scroll_x();
 }
@@ -504,8 +504,16 @@ void PPU::update_shifters() {
         bg_shifters_.attribute_hi <<= 1;
     }
     
-    // Sprite shifting removed because render_pixel uses coordinate-based logic
-    // if (mask_.show_sprites && cycle_ >= 1 && cycle_ <= 256) { ... }
+    if (mask_.show_sprites && cycle_ >= 1 && cycle_ <= 256) {
+        for (int i = 0; i < sprite_count_; i++) {
+            if (sprite_shifters_[i].x > 0) {
+                sprite_shifters_[i].x--;
+            } else {
+                sprite_shifters_[i].pattern_lo <<= 1;
+                sprite_shifters_[i].pattern_hi <<= 1;
+            }
+        }
+    }
 }
 
 } // namespace nes
