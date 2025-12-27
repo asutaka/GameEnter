@@ -61,7 +61,7 @@ public:
     int get_cycle() const { return cycle_; }
     
     // Debug: Dump nametable and attribute table
-    void dump_nametable_debug(const char* filename);
+
     
     // Audio samples (placeholder for now)
     const std::vector<float>& get_audio_samples() const { 
@@ -132,7 +132,7 @@ private:
     // OAM (Object Attribute Memory) - 256 bytes
     // 64 sprites × 4 bytes each
     std::array<uint8_t, 256> oam_;
-    std::array<uint8_t, 32> secondary_oam_;  // 8 sprites × 4 bytes
+    std::array<uint8_t, 256> secondary_oam_;  // 64 sprites × 4 bytes (Increased from 8 for "No Sprite Limit" mode)
     
     // Palette RAM - 32 bytes
     std::array<uint8_t, 32> palette_;
@@ -195,7 +195,7 @@ private:
         bool is_sprite_0;
     };
     
-    std::array<Sprite, 8> sprite_shifters_;
+    std::array<Sprite, 64> sprite_shifters_;
     int sprite_count_;
     bool sprite_0_rendering_;
     

@@ -1,9 +1,7 @@
 #include "ppu/ppu.h"
 #include "cartridge/cartridge.h"
 #include <cstring>
-#include <iostream>
-#include <fstream>
-#include <iomanip>
+
 
 namespace nes {
 
@@ -545,7 +543,11 @@ void PPU::evaluate_sprites() {
         int h = ctrl_.sprite_size ? 16 : 8;
         int diff = scanline_ - y;
         if (diff >= 0 && diff < h) {
-            if (sprite_count_ < 8) {
+            if (sprite_count_ < 64) {
+                // Hack: Don't set overflow flag to prevent game from hiding sprites
+                // if (sprite_count_ == 8) {
+                //    status_.sprite_overflow = 1;
+                // }
                 secondary_oam_[sprite_count_ * 4 + 0] = y;
                 secondary_oam_[sprite_count_ * 4 + 1] = oam_[i * 4 + 1];
                 secondary_oam_[sprite_count_ * 4 + 2] = oam_[i * 4 + 2];
@@ -553,7 +555,8 @@ void PPU::evaluate_sprites() {
                 if (i == 0) sprite_0_rendering_ = true;
                 sprite_count_++;
             } else {
-                status_.sprite_overflow = 1;
+                // Real hardware sets overflow here (at 8), but we do it above to allow "unlimited" sprites
+                // status_.sprite_overflow = 1; 
                 break;
             }
         }
@@ -562,12 +565,12 @@ void PPU::evaluate_sprites() {
 
 void PPU::load_sprites() {
     // Clear all sprite shifters first to prevent garbage data
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 64; i++) {
         sprite_shifters_[i] = {0xFF, 0, 0, 0xFF, 0, 0, false};
     }
     
     // Load active sprites for current scanline
-    for (int i = 0; i < sprite_count_ && i < 8; i++) {
+    for (int i = 0; i < sprite_count_ && i < 64; i++) {
         uint8_t y = secondary_oam_[i * 4 + 0];
         uint8_t tile = secondary_oam_[i * 4 + 1];
         uint8_t attr = secondary_oam_[i * 4 + 2];
@@ -596,6 +599,13 @@ void PPU::load_sprites() {
             };
             lo = rev(lo); hi = rev(hi);
         }
+        
+        // Debug Sprite 2 address
+        // if (i == 2) {
+        //    std::cout << "Sprite 2: Tile=" << std::hex << (int)tile << " Row=" << std::dec << row 
+        //              << " Addr=" << std::hex << addr << " Lo=" << (int)lo << " Hi=" << (int)hi << std::endl;
+        // }
+        
         sprite_shifters_[i] = {y, tile, attr, x, lo, hi, (i == 0 && sprite_0_rendering_)};
     }
 }
@@ -645,81 +655,7 @@ void PPU::update_shifters() {
     // Sprite shifting removed - using coordinate based rendering
 }
 
-void PPU::dump_nametable_debug(const char* filename) {
-    std::ofstream file(filename);
-    if (!file.is_open()) {
-        return;
-    }
-    
-    file << "=== PPU Nametable & Attribute Debug Dump ===" << std::endl;
-    file << "Frame: " << frame_ << std::endl;
-    file << "Scanline: " << scanline_ << ", Cycle: " << cycle_ << std::endl;
-    file << "Scroll: v_=0x" << std::hex << v_ << ", t_=0x" << t_ << ", x_=" << std::dec << (int)x_ << std::endl;
-    file << std::endl;
-    
-    // Dump all 4 nametables
-    for (int nt = 0; nt < 4; nt++) {
-        file << "=== Nametable " << nt << " ($" << std::hex << (0x2000 + nt * 0x400) << ") ===" << std::dec << std::endl;
-        
-        uint16_t nt_base = 0x2000 + (nt * 0x400);
-        
-        // Dump nametable tiles (30 rows x 32 cols)
-        file << "Tiles:" << std::endl;
-        for (int row = 0; row < 30; row++) {
-            for (int col = 0; col < 32; col++) {
-                uint16_t addr = nt_base + (row * 32) + col;
-                uint8_t tile = ppu_read(addr);
-                file << std::hex << std::setw(2) << std::setfill('0') << (int)tile << " ";
-            }
-            file << std::endl;
-        }
-        file << std::endl;
-        
-        // Dump attribute table (8 rows x 8 cols)
-        file << "Attribute Table:" << std::endl;
-        uint16_t attr_base = nt_base + 0x3C0;
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                uint16_t addr = attr_base + (row * 8) + col;
-                uint8_t attr = ppu_read(addr);
-                
-                // Decode attribute byte into 4 quadrants
-                uint8_t tl = (attr >> 0) & 0x03;  // Top-left
-                uint8_t tr = (attr >> 2) & 0x03;  // Top-right
-                uint8_t bl = (attr >> 4) & 0x03;  // Bottom-left
-                uint8_t br = (attr >> 6) & 0x03;  // Bottom-right
-                
-                file << "[" << (int)tl << (int)tr << (int)bl << (int)br << "] ";
-            }
-            file << std::endl;
-        }
-        file << std::endl;
-    }
-    
-    // Dump palette RAM
-    file << "=== Palette RAM ===" << std::endl;
-    file << "Background Palettes:" << std::endl;
-    for (int i = 0; i < 4; i++) {
-        file << "Palette " << i << ": ";
-        for (int j = 0; j < 4; j++) {
-            uint8_t color = ppu_read(0x3F00 + i * 4 + j);
-            file << std::hex << std::setw(2) << std::setfill('0') << (int)color << " ";
-        }
-        file << std::endl;
-    }
-    file << "Sprite Palettes:" << std::endl;
-    for (int i = 0; i < 4; i++) {
-        file << "Palette " << i << ": ";
-        for (int j = 0; j < 4; j++) {
-            uint8_t color = ppu_read(0x3F10 + i * 4 + j);
-            file << std::hex << std::setw(2) << std::setfill('0') << (int)color << " ";
-        }
-        file << std::endl;
-    }
-    
-    file << std::dec << std::endl;
-    file << "=== End of dump ===" << std::endl;
-    file.close();
-}
+
+
 
 } // namespace nes

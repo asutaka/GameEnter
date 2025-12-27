@@ -183,11 +183,7 @@ int main(int argc, char* argv[]) {
                     emu.memory_.write(0x2001, 0x1E);
                     std::cout << "Forced PPUMASK = $1E (rendering enabled)" << std::endl;
                 }
-                // Dump PPU debug (D key)
-                if (e.key.keysym.sym == SDLK_d) {
-                    emu.get_ppu().dump_nametable_debug("ppu_debug_dump.txt");
-                    std::cout << "PPU debug dumped to ppu_debug_dump.txt" << std::endl;
-                }
+
             }
         }
 
