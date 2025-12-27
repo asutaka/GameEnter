@@ -55,6 +55,10 @@ public:
      */
     bool nmi_occurred() const { return nmi_occurred_; }
     void clear_nmi() { nmi_occurred_ = false; }
+    
+    // Debug getters
+    int get_scanline() const { return scanline_; }
+    int get_cycle() const { return cycle_; }
 
 private:
     // ==================
@@ -172,6 +176,7 @@ private:
         // Rendering data
         uint8_t pattern_lo;
         uint8_t pattern_hi;
+        bool is_sprite_0;
     };
     
     std::array<Sprite, 8> sprite_shifters_;

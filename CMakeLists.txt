@@ -34,7 +34,10 @@ add_library(nes_core STATIC
     core/cartridge/cartridge.cpp
     core/mappers/mapper0.cpp
     core/mappers/mapper1.cpp
+    core/mappers/mapper2.cpp
+    core/mappers/mapper3.cpp
     core/mappers/mapper4.cpp
+    core/mappers/mapper7.cpp
     core/input/input.cpp
     core/emulator.cpp
 )
@@ -71,8 +74,6 @@ else()
     target_link_libraries(nes_app PRIVATE nes_core SDL2 SDL2main)
 endif()
 
-
-
 # Game ROM Test Application
 add_executable(game_test
     desktop/game_test.cpp
@@ -100,32 +101,113 @@ target_link_libraries(ppu_debug PRIVATE
     nes_core
 )
 
+# PPU Diagnostic Tool (checks register states)
+add_executable(ppu_diagnostic
+    desktop/ppu_diagnostic.cpp
+)
+
+target_link_libraries(ppu_diagnostic PRIVATE
+    nes_core
+)
+
+# CPU Execution Test (console only, shows debug output)
+add_executable(cpu_exec_test
+    desktop/cpu_exec_test.cpp
+)
+
+target_link_libraries(cpu_exec_test PRIVATE
+    nes_core
+)
+
+# Force Render Test (manually enables PPUMASK)
+add_executable(force_render_test
+    desktop/force_render_test.cpp
+)
+
+target_link_libraries(force_render_test PRIVATE
+    nes_core
+)
+
+# Framebuffer Test (checks if any rendering happens)
+add_executable(framebuffer_test
+    desktop/framebuffer_test.cpp
+)
+
+target_link_libraries(framebuffer_test PRIVATE
+    nes_core
+)
+
+# Palette Test (dumps palette RAM)
+add_executable(palette_test
+    desktop/palette_test.cpp
+)
+
+target_link_libraries(palette_test PRIVATE
+    nes_core
+)
+
+# Manual Nametable Test (writes test pattern manually)
+add_executable(manual_nametable_test
+    desktop/manual_nametable_test.cpp
+)
+
+target_link_libraries(manual_nametable_test PRIVATE
+    nes_core
+)
+
+# Nametable Content Check
+add_executable(nametable_content_check
+    desktop/nametable_content_check.cpp
+)
+
+target_link_libraries(nametable_content_check PRIVATE
+    nes_core
+)
+
+# CHR Tile Check
+add_executable(chr_tile_check
+    desktop/chr_tile_check.cpp
+)
+
+target_link_libraries(chr_tile_check PRIVATE
+    nes_core
+)
+
+# Force PPUMASK Test
+add_executable(force_ppumask_test
+    desktop/force_ppumask_test.cpp
+)
+
+target_link_libraries(force_ppumask_test PRIVATE
+    nes_core
+)
+
+# Minimal Render Test
+add_executable(minimal_render_test
+    desktop/minimal_render_test.cpp
+)
+
+target_link_libraries(minimal_render_test PRIVATE
+    nes_core
+)
+
 message(STATUS "Console test app: ENABLED")
 message(STATUS "Game ROM test app: ENABLED")
 message(STATUS "PPU test app: ENABLED")
 message(STATUS "PPU debug app: ENABLED")
+message(STATUS "PPU diagnostic app: ENABLED")
+message(STATUS "CPU execution test: ENABLED")
+message(STATUS "Force render test: ENABLED")
+message(STATUS "Framebuffer test: ENABLED")
+message(STATUS "Palette test: ENABLED")
 
 # Desktop Application với SDL2 (Optional)
 find_package(SDL2 QUIET)
 
 if(SDL2_FOUND)
-    # TODO: Tạo SDL2 app sau khi CPU test pass
-    # add_executable(nes_desktop_sdl
-    #     desktop/main_sdl.cpp
-    #     desktop/renderer_sdl.cpp
-    #     desktop/audio_sdl.cpp
-    # )
-    # 
-    # target_link_libraries(nes_desktop_sdl PRIVATE
-    #     nes_core
-    #     SDL2::SDL2
-    # )
-    
     message(STATUS "SDL2 found: ${SDL2_VERSION}")
-    message(STATUS "SDL2 app: TODO (sau khi CPU test pass)")
 else()
     message(STATUS "SDL2 not found (optional)")
-    message(STATUS "Console test app vẫn build được!")
 endif()
 
 # Tests (Google Test)

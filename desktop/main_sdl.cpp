@@ -119,6 +119,17 @@ int main(int argc, char* argv[]) {
     std::cout << "  Quit:   ESC" << std::endl;
 
     emu.reset();
+    
+    // Run warmup frames to let PPU initialize
+    std::cout << "Running warmup frames..." << std::endl;
+    for (int i = 0; i < 10; i++) {
+        emu.run_frame();
+    }
+    
+    // Don't init palette - let game do it
+    // This way game's colors will be correct
+    
+    std::cout << "Emulator ready!" << std::endl;
 
     // Main loop
     bool quit = false;
@@ -126,6 +137,8 @@ int main(int argc, char* argv[]) {
     
     auto last_time = std::chrono::high_resolution_clock::now();
     int frame_count = 0;
+    int total_frames = 0;
+    bool auto_started = false;
     
     while (!quit) {
         // Handle events
@@ -139,7 +152,14 @@ int main(int argc, char* argv[]) {
                 // Reset
                 if (e.key.keysym.sym == SDLK_r) {
                     emu.reset();
+                    total_frames = 0;
+                    auto_started = false;
                     std::cout << "Reset!" << std::endl;
+                }
+                // Force rendering (F key)
+                if (e.key.keysym.sym == SDLK_f) {
+                    emu.memory_.write(0x2001, 0x1E);
+                    std::cout << "Forced PPUMASK = $1E (rendering enabled)" << std::endl;
                 }
             }
         }
@@ -147,9 +167,23 @@ int main(int argc, char* argv[]) {
         // Handle input
         const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
         handle_input(emu, currentKeyStates);
+        
+        // Auto-start: Press START button after 3 seconds (180 frames) to help games initialize
+        if (!auto_started && total_frames >= 180 && total_frames <= 190) {
+            emu.set_controller(0, 0x08); // START button
+            if (total_frames == 190) {
+                auto_started = true;
+                std::cout << "Auto-pressed START to begin game..." << std::endl;
+            }
+        }
 
         // Run one frame
         emu.run_frame();
+        total_frames++;
+        
+        if (total_frames % 60 == 0) {
+            std::cout << "Frame: " << total_frames << " (Running...)" << std::endl;
+        }
         
         // Audio Output
         if (audio_device != 0) {

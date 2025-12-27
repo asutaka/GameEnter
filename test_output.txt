@@ -1,0 +1,66 @@
+=== CPU Execution Test ===
+Emulator created.
+=== iNES ROM Info ===
+PRG ROM: 1 x 16KB
+CHR ROM: 1 x 8KB
+Mapper: 0
+Battery: No
+Trainer: No
+Mirroring: Horizontal
+ROM loaded successfully!
+ROM loaded successfully!
+Reset complete.
+About to access PC...
+PC read OK, value=$c79e
+Initial PC: $c79e
+
+Running 180 frames (3 seconds)...
+Frame 0...[EMU] Frame 0 starting, PC=$C79E
+[EMU] Instruction 0: PC=$C79E, cycles=1
+[EMU] Instruction 1: PC=$C79E, cycles=1
+[EMU] Instruction 2: PC=$C79E, cycles=1
+[EMU] Instruction 3: PC=$C79E, cycles=1
+[EMU] Instruction 4: PC=$C79E, cycles=1
+[CPU::execute] Opcode=$78 PC=$C79E
+[CPU::execute] Info=SEI
+[CPU::execute] Addr=$0000
+[CPU::execute] Done, cycles=2
+[CPU::execute] Opcode=$D8 PC=$C79F
+[CPU::execute] Info=CLD
+[CPU::execute] Addr=$0000
+[CPU::execute] Done, cycles=2
+[CPU::execute] Opcode=$A9 PC=$C7A0
+[CPU::execute] Info=LDA
+[CPU::execute] Addr=$C7A1
+[CPU::execute] Done, cycles=2
+[CPU::execute] Opcode=$8D PC=$C7A2
+[CPU::execute] Info=STA
+[CPU::execute] Addr=$2000
+[PPU] Frame 0: PPUCTRL = $10 (NMI=0)
+[CPU::execute] Done, cycles=4
+[CPU::execute] Opcode=$A2 PC=$C7A5
+[CPU::execute] Info=LDX
+[CPU::execute] Addr=$C7A6
+[CPU::execute] Done, cycles=2
+ done. PC=$c7bc
+[PPU] Frame 1: PPUCTRL = $10 (NMI=0)
+[MEM] Write $2001 -> PPU $2001 = $06 (PPUMASK)
+[PPU] Frame 1: PPUMASK = $06 (BG=0, SPR=0)
+[MEM] Write $2001 -> PPU $2001 = $06 (PPUMASK)
+[PPU] Frame 1: PPUMASK = $06 (BG=0, SPR=0)
+[PPU] Frame 1: PPUCTRL = $10 (NMI=0)
+[PPU] Frame 2: PPUCTRL = $90 (NMI=1)
+Frame 30... done. PC=$f4ff
+Frame 60... done. PC=$f4ed
+Frame 90... done. PC=$f509
+Frame 120... done. PC=$f4ff
+Frame 150... done. PC=$f4ed
+
+Checking framebuffer...
+Background color: #666666
+Different pixels: 0
+
+❌ NO RENDERING!
+
+Check console output above for [EMU], [MEM], and [PPU] messages.
+If you see NO debug messages, CPU may not be executing.

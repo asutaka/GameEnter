@@ -3,13 +3,13 @@
 #include <fstream>
 #include <iostream>
 
-// Include mapper implementations
-#include "mappers/mapper0.cpp"
-#include "mappers/mapper1.cpp"
-#include "mappers/mapper2.cpp"
-#include "mappers/mapper3.cpp"
-#include "mappers/mapper4.cpp"
-#include "mappers/mapper7.cpp"
+// Include mapper headers
+#include "mappers/mapper0.h"
+#include "mappers/mapper1.h"
+#include "mappers/mapper2.h"
+#include "mappers/mapper3.h"
+#include "mappers/mapper4.h"
+#include "mappers/mapper7.h"
 
 namespace nes {
 

@@ -55,11 +55,25 @@ void Emulator::run_frame() {
     
     audio_samples_.clear();
     
-    static int instruction_count = 0;
+    int instruction_count = 0;
+    
+    // DEBUG: Log first few frames
+    // if (master_clock_ == 0) {
+    //     printf("[EMU] Frame 0 starting, PC=$%04X\n", cpu_.PC);
+    //     fflush(stdout);
+    // }
     
     while (cycles < CYCLES_PER_FRAME) {
         // CPU step
         int cpu_cycles = cpu_.step();
+        
+        // DEBUG: Check if CPU is actually executing
+        // if (master_clock_ == 0 && instruction_count < 5) {
+        //     printf("[EMU] Instruction %d: PC=$%04X, cycles=%d\n", 
+        //            instruction_count,cpu_.PC, cpu_cycles);
+        //     fflush(stdout);
+        // }
+        instruction_count++;
         
         cycles += cpu_cycles;
         
@@ -79,6 +93,8 @@ void Emulator::run_frame() {
             }
         }
     }
+    
+    master_clock_ += CYCLES_PER_FRAME;
 }
 
 const uint8_t* Emulator::get_framebuffer() const {

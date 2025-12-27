@@ -93,7 +93,18 @@ void Memory::write(uint16_t address, uint8_t value) {
     // PPU Registers ($2000-$3FFF)
     if (address < 0x4000) {
         if (ppu_) {
-            ppu_->write_register(0x2000 + (address & 0x0007), value);
+            uint16_t ppu_reg = 0x2000 + (address & 0x0007);
+            // DEBUG: Log PPUMASK writes
+            // if ((address & 0x0007) == 1) { // PPUMASK
+            //     static int ppumask_count = 0;
+            //     if (ppumask_count++ < 20 || value != 0) {
+            //         printf("[MEM] Write $%04X -> PPU $%04X = $%02X (PPUMASK)\n", 
+            //                address, ppu_reg, value);
+            //     }
+            // }
+            ppu_->write_register(ppu_reg, value);
+        } else {
+            // printf("[MEM] WARNING: Write $%04X but PPU is NULL!\n", address);
         }
         return;
     }

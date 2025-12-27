@@ -49,8 +49,8 @@ int CPU::step() {
     // Thực thi
     execute(opcode);
     
-    // Đã tiêu tốn 1 cycle cho bước hiện tại
-    cycles_remaining--;
+    // execute() đã set cycles_remaining, không cần decrement thêm!
+    // cycles_remaining đã được set bởi execute() thành số cycles của instruction
     total_cycles++;
     
     return 1;

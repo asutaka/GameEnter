@@ -401,7 +401,18 @@ static const std::array<OpcodeInfo, 256> OPCODE_TABLE = {{
 
 // Execute opcode mới sử dụng table
 void CPU::execute(uint8_t opcode) {
+    // static int exec_count = 0;
+    // if (exec_count++ < 5) {
+    //     printf("[CPU::execute] Opcode=$%02X PC=$%04X\n", opcode, PC-1);
+    //     fflush(stdout);
+    // }
+    
     const OpcodeInfo& info = OPCODE_TABLE[opcode];
+    
+    // if (exec_count <= 5) {
+    //     printf("[CPU::execute] Info=%s\n", info.name);
+    //     fflush(stdout);
+    // }
     
     // Reset page crossed flag
     page_crossed_ = false;
@@ -409,11 +420,21 @@ void CPU::execute(uint8_t opcode) {
     // Get address từ addressing mode
     uint16_t addr = (this->*info.addr_mode)();
     
-    // Set base cycles first
-    cycles_remaining = info.cycles;
+    // if (exec_count <= 5) {
+    //     printf("[CPU::execute] Addr=$%04X\n", addr);
+    //     fflush(stdout);
+    // }
+    
+    // Set base cycles (minus 1 because we already spent 1 cycle on the execute call)
+    cycles_remaining = info.cycles - 1;
     
     // Execute instruction (may modify cycles_remaining, e.g., Branch)
     (this->*info.execute)(addr);
+    
+    // if (exec_count <= 5) {
+    //     printf("[CPU::execute] Done, cycles_remaining=%d\n", cycles_remaining);
+    //     fflush(stdout);
+    // }
     
     // Add page cross penalty if needed
     if (info.page_cross_penalty && page_crossed_) {
