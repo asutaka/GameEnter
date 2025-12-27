@@ -29,6 +29,14 @@ void handle_input(Emulator& emu, const Uint8* keys) {
     if (keys[SDL_SCANCODE_RIGHT])  buttons |= (1 << Input::BUTTON_RIGHT);
     
     emu.set_controller(0, buttons);
+
+    // Debug Start button
+    static bool was_start_pressed = false;
+    bool is_start_pressed = (buttons & (1 << Input::BUTTON_START)) != 0;
+    if (is_start_pressed && !was_start_pressed) {
+        std::cout << "Start Button Pressed!" << std::endl;
+    }
+    was_start_pressed = is_start_pressed;
 }
 
 int main(int argc, char* argv[]) {
@@ -37,14 +45,29 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) { // Audio disabled
+    // Initialize SDL with Audio
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
         return 1;
     }
 
-    // Audio disabled for performance/lag debugging
-    SDL_AudioDeviceID audio_device = 0;
+    // Audio Specification
+    SDL_AudioSpec want, have;
+    SDL_zero(want);
+    want.freq = 44100;
+    want.format = AUDIO_F32;
+    want.channels = 1;
+    want.samples = 2048; // Buffer size
+    want.callback = NULL; // Use queue
+    
+    SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (audio_device == 0) {
+        std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
+        // Continue without audio
+    } else {
+        SDL_PauseAudioDevice(audio_device, 0); // Start playing
+        std::cout << "Audio initialized successfully!" << std::endl;
+    }
 
     // Create window
     SDL_Window* window = SDL_CreateWindow(
@@ -60,7 +83,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Create renderer WITHOUT VSync (SDL_RENDERER_PRESENTVSYNC removed)
+    // Create renderer WITHOUT VSync (to minimize input lag)
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
         std::cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << std::endl;
@@ -92,6 +115,7 @@ int main(int argc, char* argv[]) {
         SDL_DestroyTexture(texture);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
+        if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
         SDL_Quit();
         return 1;
     }
@@ -165,14 +189,7 @@ int main(int argc, char* argv[]) {
         const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
         handle_input(emu, currentKeyStates);
         
-        // Auto-start: Press START button after 3 seconds (180 frames) to help games initialize
-        if (!auto_started && total_frames >= 180 && total_frames <= 190) {
-            emu.set_controller(0, 0x08); // START button
-            if (total_frames == 190) {
-                auto_started = true;
-                std::cout << "Auto-pressed START to begin game..." << std::endl;
-            }
-        }
+        // Auto-start removed to allow manual control
 
         // Run one frame and measure time
         auto emu_start = std::chrono::high_resolution_clock::now();
@@ -182,6 +199,14 @@ int main(int argc, char* argv[]) {
         
         total_frames++;
         
+        // Audio Output
+        if (audio_device != 0) {
+            const std::vector<float>& samples = emu.get_audio_samples();
+            if (!samples.empty()) {
+                SDL_QueueAudio(audio_device, samples.data(), samples.size() * sizeof(float));
+            }
+        }
+
         // Update texture
         const uint8_t* framebuffer = emu.get_framebuffer();
         SDL_UpdateTexture(texture, NULL, framebuffer, SCREEN_WIDTH * 4);
@@ -210,9 +235,9 @@ int main(int argc, char* argv[]) {
             SDL_SetWindowTitle(window, title.c_str());
             
             // Log performance to console
-            std::cout << "FPS: " << frame_count 
-                      << " | Emu Time: " << std::fixed << std::setprecision(2) << emu_duration.count() << "ms"
-                      << " | Total Frame: " << elapsed_ms.count() << "ms" << std::endl;
+            // std::cout << "FPS: " << frame_count 
+            //           << " | Emu Time: " << std::fixed << std::setprecision(2) << emu_duration.count() << "ms"
+            //           << " | Total Frame: " << elapsed_ms.count() << "ms" << std::endl;
             
             frame_count = 0;
             fps_timer = current_time;
@@ -223,7 +248,7 @@ int main(int argc, char* argv[]) {
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
-    // if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
+    if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
     SDL_Quit();
 
     return 0;
