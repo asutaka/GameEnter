@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <thread>
 
 using namespace nes;
 
@@ -27,6 +28,16 @@ void handle_input(Emulator& emu, const Uint8* keys) {
     if (keys[SDL_SCANCODE_RIGHT])  buttons |= (1 << Input::BUTTON_RIGHT);
     
     emu.set_controller(0, buttons);
+    
+    // Debug input
+    static uint8_t last_buttons = 0;
+    if (buttons != last_buttons) {
+        if (buttons & (1 << Input::BUTTON_A)) std::cout << "Button A (Jump) Pressed" << std::endl;
+        if (buttons & (1 << Input::BUTTON_B)) std::cout << "Button B Pressed" << std::endl;
+        if (buttons & (1 << Input::BUTTON_SELECT)) std::cout << "Button Select Pressed" << std::endl;
+        if (buttons & (1 << Input::BUTTON_START)) std::cout << "Button Start Pressed" << std::endl;
+        last_buttons = buttons;
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -143,6 +154,7 @@ int main(int argc, char* argv[]) {
     SDL_Event e;
     
     auto last_time = std::chrono::high_resolution_clock::now();
+    auto fps_timer = std::chrono::high_resolution_clock::now();
     int frame_count = 0;
     int total_frames = 0;
     bool auto_started = false;
@@ -196,19 +208,7 @@ int main(int argc, char* argv[]) {
         if (audio_device != 0) {
             const std::vector<float>& samples = emu.get_audio_samples();
             if (!samples.empty()) {
-                // Queue audio
                 SDL_QueueAudio(audio_device, samples.data(), samples.size() * sizeof(float));
-                
-                // Simple sync: if queue is too large, skip a frame or delay?
-                // For now, let's just let it run. SDL handles buffering.
-                // If queue gets too big (latency), we might want to clear it or speed up.
-                // But with VSync enabled, it should be roughly synced.
-                
-                // Anti-latency: if queue > 0.1s, clear some?
-                // uint32_t queued_bytes = SDL_GetQueuedAudioSize(audio_device);
-                // if (queued_bytes > 44100 * sizeof(float) / 5) { // > 0.2s
-                //     SDL_ClearQueuedAudio(audio_device);
-                // }
             }
         }
 
@@ -221,16 +221,27 @@ int main(int argc, char* argv[]) {
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
         
+        // Frame Limiter (Cap at ~60 FPS)
+        auto current_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed_ms = current_time - last_time;
+        
+        // Target 16.67ms per frame (60 FPS)
+        if (elapsed_ms.count() < 16.667) {
+            SDL_Delay((Uint32)(16.667 - elapsed_ms.count()));
+        }
+        
+        last_time = std::chrono::high_resolution_clock::now(); // Reset for next frame limit
+        
         // FPS Counter
         frame_count++;
-        auto current_time = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed = current_time - last_time;
+        current_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_sec = current_time - fps_timer;
         
-        if (elapsed.count() >= 1.0) {
+        if (elapsed_sec.count() >= 1.0) {
             std::string title = "NES Emulator - FPS: " + std::to_string(frame_count);
             SDL_SetWindowTitle(window, title.c_str());
             frame_count = 0;
-            last_time = current_time;
+            fps_timer = current_time;
         }
     }
 
