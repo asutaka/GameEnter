@@ -5,6 +5,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
+#include <iomanip>
 
 using namespace nes;
 
@@ -28,16 +29,6 @@ void handle_input(Emulator& emu, const Uint8* keys) {
     if (keys[SDL_SCANCODE_RIGHT])  buttons |= (1 << Input::BUTTON_RIGHT);
     
     emu.set_controller(0, buttons);
-    
-    // Debug input
-    static uint8_t last_buttons = 0;
-    if (buttons != last_buttons) {
-        if (buttons & (1 << Input::BUTTON_A)) std::cout << "Button A (Jump) Pressed" << std::endl;
-        if (buttons & (1 << Input::BUTTON_B)) std::cout << "Button B Pressed" << std::endl;
-        if (buttons & (1 << Input::BUTTON_SELECT)) std::cout << "Button Select Pressed" << std::endl;
-        if (buttons & (1 << Input::BUTTON_START)) std::cout << "Button Start Pressed" << std::endl;
-        last_buttons = buttons;
-    }
 }
 
 int main(int argc, char* argv[]) {
@@ -47,27 +38,13 @@ int main(int argc, char* argv[]) {
     }
 
     // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) { // Audio disabled
         std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
         return 1;
     }
 
-    // Audio Specification
-    SDL_AudioSpec want, have;
-    SDL_zero(want);
-    want.freq = 44100;
-    want.format = AUDIO_F32;
-    want.channels = 1;
-    want.samples = 2048;
-    want.callback = NULL; // Use queue
-    
-    SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-    if (audio_device == 0) {
-        std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
-        // Continue without audio
-    } else {
-        SDL_PauseAudioDevice(audio_device, 0); // Start playing
-    }
+    // Audio disabled for performance/lag debugging
+    SDL_AudioDeviceID audio_device = 0;
 
     // Create window
     SDL_Window* window = SDL_CreateWindow(
@@ -83,8 +60,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Create renderer
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    // Create renderer WITHOUT VSync (SDL_RENDERER_PRESENTVSYNC removed)
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
         std::cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << std::endl;
         SDL_DestroyWindow(window);
@@ -115,7 +92,6 @@ int main(int argc, char* argv[]) {
         SDL_DestroyTexture(texture);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
-        if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
         SDL_Quit();
         return 1;
     }
@@ -160,6 +136,8 @@ int main(int argc, char* argv[]) {
     bool auto_started = false;
     
     while (!quit) {
+        auto frame_start = std::chrono::high_resolution_clock::now();
+
         // Handle events
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
@@ -196,22 +174,14 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Run one frame
+        // Run one frame and measure time
+        auto emu_start = std::chrono::high_resolution_clock::now();
         emu.run_frame();
+        auto emu_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> emu_duration = emu_end - emu_start;
+        
         total_frames++;
         
-        if (total_frames % 60 == 0) {
-            std::cout << "Frame: " << total_frames << " (Running...)" << std::endl;
-        }
-        
-        // Audio Output
-        if (audio_device != 0) {
-            const std::vector<float>& samples = emu.get_audio_samples();
-            if (!samples.empty()) {
-                SDL_QueueAudio(audio_device, samples.data(), samples.size() * sizeof(float));
-            }
-        }
-
         // Update texture
         const uint8_t* framebuffer = emu.get_framebuffer();
         SDL_UpdateTexture(texture, NULL, framebuffer, SCREEN_WIDTH * 4);
@@ -223,16 +193,14 @@ int main(int argc, char* argv[]) {
         
         // Frame Limiter (Cap at ~60 FPS)
         auto current_time = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed_ms = current_time - last_time;
+        std::chrono::duration<double, std::milli> elapsed_ms = current_time - frame_start;
         
         // Target 16.67ms per frame (60 FPS)
         if (elapsed_ms.count() < 16.667) {
             SDL_Delay((Uint32)(16.667 - elapsed_ms.count()));
         }
         
-        last_time = std::chrono::high_resolution_clock::now(); // Reset for next frame limit
-        
-        // FPS Counter
+        // FPS Counter & Performance Log
         frame_count++;
         current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_sec = current_time - fps_timer;
@@ -240,6 +208,12 @@ int main(int argc, char* argv[]) {
         if (elapsed_sec.count() >= 1.0) {
             std::string title = "NES Emulator - FPS: " + std::to_string(frame_count);
             SDL_SetWindowTitle(window, title.c_str());
+            
+            // Log performance to console
+            std::cout << "FPS: " << frame_count 
+                      << " | Emu Time: " << std::fixed << std::setprecision(2) << emu_duration.count() << "ms"
+                      << " | Total Frame: " << elapsed_ms.count() << "ms" << std::endl;
+            
             frame_count = 0;
             fps_timer = current_time;
         }
@@ -249,7 +223,7 @@ int main(int argc, char* argv[]) {
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
-    if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
+    // if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
     SDL_Quit();
 
     return 0;
