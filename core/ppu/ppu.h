@@ -60,6 +60,9 @@ public:
     int get_scanline() const { return scanline_; }
     int get_cycle() const { return cycle_; }
     
+    // Debug: Dump nametable and attribute table
+    void dump_nametable_debug(const char* filename);
+    
     // Audio samples (placeholder for now)
     const std::vector<float>& get_audio_samples() const { 
         static std::vector<float> empty; 
@@ -171,6 +174,13 @@ private:
         uint16_t attribute_lo; // Attribute low bits
         uint16_t attribute_hi; // Attribute high bits
     } bg_shifters_;
+    
+    // Internal latches for 8-phase fetch cycle
+    uint8_t nt_latch_;          // Nametable byte latch
+    uint8_t at_latch_;          // Attribute byte latch
+    uint8_t at_palette_latch_;  // Calculated attribute palette (0-3)
+    uint8_t bg_lo_latch_;       // Pattern low byte latch
+    uint8_t bg_hi_latch_;       // Pattern high byte latch
     
     // Sprite rendering
     struct Sprite {

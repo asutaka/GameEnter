@@ -2,6 +2,8 @@
 #include "cartridge/cartridge.h"
 #include <cstring>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 
 namespace nes {
 
@@ -23,7 +25,8 @@ PPU::PPU()
       oam_addr_(0), read_buffer_(0), data_bus_(0),
       v_(0), t_(0), x_(0), w_(0),
       sprite_count_(0), sprite_0_rendering_(false),
-      odd_frame_(false) {
+      odd_frame_(false),
+      nt_latch_(0), at_latch_(0), at_palette_latch_(0), bg_lo_latch_(0), bg_hi_latch_(0) {
     
     // Initialize registers
     std::memset(&ctrl_, 0, sizeof(ctrl_));
@@ -79,14 +82,60 @@ bool PPU::step() {
         if (rendering) {
             // Background processing: Visible cycles and Pre-fetch (321-336)
             if ((cycle_ >= 1 && cycle_ <= 256) || (cycle_ >= 321 && cycle_ <= 336)) {
-                // Shift registers every cycle
+                // Shift every cycle
                 update_shifters();
                 
-                // Fetch tile every 8 cycles (at cycles 8, 16, 24, ...)
-                // This allows the shifters to fully shift the previous tile into the high byte
-                // before loading the new tile into the low byte.
-                if (cycle_ % 8 == 0) {
-                    fetch_background_tile();
+                // 8-phase fetch cycle (simplified)
+                // Each tile takes 8 cycles to fetch
+                switch ((cycle_ - 1) % 8) {
+                    case 0:  // Cycle 1, 9, 17, 25... - Fetch nametable byte
+                        {
+                            uint16_t nt_addr = 0x2000 | (v_ & 0x0FFF);
+                            nt_latch_ = ppu_read(nt_addr);
+                        }
+                        break;
+                        
+                    case 2:  // Cycle 3, 11, 19, 27... - Fetch attribute byte
+                        {
+                            uint16_t attr_addr = 0x23C0 | (v_ & 0x0C00) | ((v_ >> 4) & 0x38) | ((v_ >> 2) & 0x07);
+                            at_latch_ = ppu_read(attr_addr);
+                            
+                            // Calculate attribute palette NOW, using current v_
+                            // This must be done before increment_scroll_x changes v_!
+                            uint8_t shift = ((v_ & 0x40) >> 4) | (v_ & 0x02);
+                            at_palette_latch_ = (at_latch_ >> shift) & 0x03;
+                        }
+                        break;
+                        
+                    case 4:  // Cycle 5, 13, 21, 29... - Fetch pattern low byte
+                        {
+                            uint16_t pat_addr = (ctrl_.bg_pattern ? 0x1000 : 0x0000) + (nt_latch_ * 16) + ((v_ >> 12) & 0x07);
+                            bg_lo_latch_ = ppu_read(pat_addr);
+                        }
+                        break;
+                        
+                    case 6:  // Cycle 7, 15, 23, 31... - Fetch pattern high byte
+                        {
+                            uint16_t pat_addr = (ctrl_.bg_pattern ? 0x1000 : 0x0000) + (nt_latch_ * 16) + ((v_ >> 12) & 0x07);
+                            bg_hi_latch_ = ppu_read(pat_addr + 8);
+                        }
+                        break;
+                        
+                    case 7:  // Cycle 8, 16, 24, 32... - Reload shifters and increment scroll
+                        {
+                            // Use pre-calculated attribute palette from cycle 3
+                            uint8_t pal = at_palette_latch_;
+                            
+                            // Load into shift registers
+                            bg_shifters_.pattern_lo = (bg_shifters_.pattern_lo & 0xFF00) | bg_lo_latch_;
+                            bg_shifters_.pattern_hi = (bg_shifters_.pattern_hi & 0xFF00) | bg_hi_latch_;
+                            bg_shifters_.attribute_lo = (bg_shifters_.attribute_lo & 0xFF00) | ((pal & 0x01) ? 0xFF : 0x00);
+                            bg_shifters_.attribute_hi = (bg_shifters_.attribute_hi & 0xFF00) | ((pal & 0x02) ? 0xFF : 0x00);
+                            
+                            // Increment scroll X
+                            increment_scroll_x();
+                        }
+                        break;
                 }
             }
         }
@@ -291,7 +340,10 @@ uint8_t PPU::ppu_read(uint16_t address) {
     }
     else if (address < 0x4000) {
         address &= 0x001F;
-        if (address >= 16 && (address & 0x03) == 0) address -= 16;
+        // Palette mirroring: $3F10/$3F14/$3F18/$3F1C (sprite backdrops) mirror to $3F00 (universal backdrop)
+        if (address >= 16 && (address & 0x03) == 0) {
+            address = 0;  // Mirror to universal backdrop
+        }
         return palette_[address];
     }
     return 0;
@@ -331,7 +383,10 @@ void PPU::ppu_write(uint16_t address, uint8_t value) {
     }
     else if (address < 0x4000) {
         address &= 0x001F;
-        if (address >= 16 && (address & 0x03) == 0) address -= 16;
+        // Palette mirroring: $3F10/$3F14/$3F18/$3F1C (sprite backdrops) mirror to $3F00 (universal backdrop)
+        if (address >= 16 && (address & 0x03) == 0) {
+            address = 0;  // Mirror to universal backdrop
+        }
         palette_[address] = value;
     }
 }
@@ -341,10 +396,13 @@ void PPU::render_pixel() {
     
     uint8_t bg_pixel = 0;
     uint8_t bg_palette = 0;
+    
+    // Render background pixel
     if (mask_.show_bg) {
-        if (!mask_.show_bg_left && cycle_ <= 8) {
-            bg_pixel = 0;
-        } else {
+        // Check if we should hide leftmost 8 pixels
+        bool hide_left = !mask_.show_bg_left && (cycle_ - 1) < 8;
+        
+        if (!hide_left) {
             uint16_t bit_mux = 0x8000 >> x_;
             uint8_t p0 = (bg_shifters_.pattern_lo & bit_mux) ? 1 : 0;
             uint8_t p1 = (bg_shifters_.pattern_hi & bit_mux) ? 1 : 0;
@@ -358,12 +416,18 @@ void PPU::render_pixel() {
     uint8_t sprite_pixel = 0;
     uint8_t sprite_palette = 0;
     bool sprite_priority = false;
+    
+    // Render sprite pixel
     if (mask_.show_sprites) {
-        if (!mask_.show_sprites_left && cycle_ <= 8) {
-            sprite_pixel = 0;
-        } else {
+        // Check if we should hide leftmost 8 pixels
+        bool hide_left = !mask_.show_sprites_left && (cycle_ - 1) < 8;
+        
+        if (!hide_left) {
             for (int i = 0; i < sprite_count_; i++) {
-                // Coordinate-based sprite rendering (more stable than shifting)
+                // Skip invalid sprites (cleared sprites have x = 0xFF)
+                if (sprite_shifters_[i].x >= 240) continue;
+                
+                // Coordinate-based sprite rendering
                 int diff = cycle_ - 1 - sprite_shifters_[i].x;
                 if (diff >= 0 && diff < 8) {
                     uint8_t bit_mask = 0x80 >> diff;
@@ -374,8 +438,10 @@ void PPU::render_pixel() {
                     if (pixel != 0) {
                         sprite_palette = sprite_shifters_[i].attributes & 0x03;
                         sprite_pixel = pixel;
+                        // Priority bit: 0 = sprite in front, 1 = sprite behind background
                         sprite_priority = (sprite_shifters_[i].attributes & 0x20) != 0;
                         
+                        // Sprite 0 hit detection
                         if (sprite_shifters_[i].is_sprite_0 && bg_pixel != 0 && cycle_ < 256) {
                             status_.sprite_0_hit = 1;
                         }
@@ -386,19 +452,41 @@ void PPU::render_pixel() {
         }
     }
     
+    // Combine background and sprite pixels
     uint8_t final_pixel = 0;
     uint8_t final_palette = 0;
+    
     if (bg_pixel == 0 && sprite_pixel == 0) {
-        final_pixel = 0; final_palette = 0;
+        // Both transparent - use backdrop color
+        final_pixel = 0;
+        final_palette = 0;
     } else if (bg_pixel == 0 && sprite_pixel > 0) {
-        final_pixel = sprite_pixel; final_palette = sprite_palette + 4;
+        // Only sprite visible
+        final_pixel = sprite_pixel;
+        final_palette = sprite_palette + 4;
     } else if (bg_pixel > 0 && sprite_pixel == 0) {
-        final_pixel = bg_pixel; final_palette = bg_palette;
+        // Only background visible
+        final_pixel = bg_pixel;
+        final_palette = bg_palette;
     } else {
+        // Both visible - check priority
+        // sprite_priority = 0: sprite in front (show sprite)
+        // sprite_priority = 1: sprite behind (show background)
         if (sprite_priority) {
-            final_pixel = bg_pixel; final_palette = bg_palette;
+            // Sprite behind background
+            if (bg_pixel != 0) {
+                // Background is opaque, hide sprite
+                final_pixel = bg_pixel;
+                final_palette = bg_palette;
+            } else {
+                // Background is transparent, show sprite
+                final_pixel = sprite_pixel;
+                final_palette = sprite_palette + 4;
+            }
         } else {
-            final_pixel = sprite_pixel; final_palette = sprite_palette + 4;
+            // Sprite in front - show sprite
+            final_pixel = sprite_pixel;
+            final_palette = sprite_palette + 4;
         }
     }
     
@@ -415,25 +503,37 @@ void PPU::render_pixel() {
 
 void PPU::fetch_background_tile() {
     if (!rendering_enabled()) return;
+    
+    // Fetch nametable byte
     uint16_t nt_addr = 0x2000 | (v_ & 0x0FFF);
     uint8_t nt_byte = ppu_read(nt_addr);
+    
+    // Fetch attribute byte
     uint16_t attr_addr = 0x23C0 | (v_ & 0x0C00) | ((v_ >> 4) & 0x38) | ((v_ >> 2) & 0x07);
     uint8_t attr_byte = ppu_read(attr_addr);
-    uint8_t shift = ((v_ & 0x02) | ((v_ & 0x40) >> 4));
+    
+    // Calculate which 2 bits of the attribute byte to use
+    // Each attribute byte controls a 4x4 tile area (32x32 pixels)
+    // Divided into four 2x2 tile quadrants
+    // Bit 0-1: top-left, 2-3: top-right, 4-5: bottom-left, 6-7: bottom-right
+    uint8_t shift = ((v_ & 0x40) >> 4) | (v_ & 0x02);
     uint8_t pal = (attr_byte >> shift) & 0x03;
+    
+    // Fetch pattern table bytes
     uint16_t pat_addr = (ctrl_.bg_pattern ? 0x1000 : 0x0000) + (nt_byte * 16) + ((v_ >> 12) & 0x07);
     uint8_t pat_lo = ppu_read(pat_addr);
     uint8_t pat_hi = ppu_read(pat_addr + 8);
     
+    // Load into shift registers (low byte)
     bg_shifters_.pattern_lo = (bg_shifters_.pattern_lo & 0xFF00) | pat_lo;
     bg_shifters_.pattern_hi = (bg_shifters_.pattern_hi & 0xFF00) | pat_hi;
-    bg_shifters_.attribute_lo = (bg_shifters_.attribute_lo & 0xFF00) | ((pal & 0x01) ? 0xFF : 0x00);
-    bg_shifters_.attribute_hi = (bg_shifters_.attribute_hi & 0xFF00) | ((pal & 0x02) ? 0xFF : 0x00);
     
-    // Increment scroll X during visible lines AND pre-fetch (321-336)
-    if ((cycle_ >= 1 && cycle_ <= 256) || (cycle_ >= 321 && cycle_ <= 336)) {
-        increment_scroll_x();
-    }
+    // Load attribute bits - replicate for all 8 pixels of the tile
+    // Each tile uses the same palette for all its pixels
+    uint8_t attr_lo = (pal & 0x01) ? 0xFF : 0x00;
+    uint8_t attr_hi = (pal & 0x02) ? 0xFF : 0x00;
+    bg_shifters_.attribute_lo = (bg_shifters_.attribute_lo & 0xFF00) | attr_lo;
+    bg_shifters_.attribute_hi = (bg_shifters_.attribute_hi & 0xFF00) | attr_hi;
 }
 
 void PPU::evaluate_sprites() {
@@ -461,6 +561,12 @@ void PPU::evaluate_sprites() {
 }
 
 void PPU::load_sprites() {
+    // Clear all sprite shifters first to prevent garbage data
+    for (int i = 0; i < 8; i++) {
+        sprite_shifters_[i] = {0xFF, 0, 0, 0xFF, 0, 0, false};
+    }
+    
+    // Load active sprites for current scanline
     for (int i = 0; i < sprite_count_ && i < 8; i++) {
         uint8_t y = secondary_oam_[i * 4 + 0];
         uint8_t tile = secondary_oam_[i * 4 + 1];
@@ -468,8 +574,11 @@ void PPU::load_sprites() {
         uint8_t x = secondary_oam_[i * 4 + 3];
         bool flip_h = attr & 0x40;
         bool flip_v = attr & 0x80;
+        
+        // Calculate which row of the sprite to render
         int row = scanline_ - y;
         if (flip_v) row = (ctrl_.sprite_size ? 16 : 8) - 1 - row;
+        
         uint16_t addr;
         if (!ctrl_.sprite_size) {
             addr = (ctrl_.sprite_pattern ? 0x1000 : 0x0000) + tile * 16 + row;
@@ -511,7 +620,17 @@ void PPU::copy_horizontal_position() { v_ = (v_ & 0xFBE0) | (t_ & 0x041F); }
 void PPU::copy_vertical_position() { v_ = (v_ & 0x841F) | (t_ & 0x7BE0); }
 
 uint32_t PPU::get_color_from_palette(uint8_t palette_index, uint8_t pixel) {
-    uint8_t color_index = ppu_read(0x3F00 + (palette_index * 4) + pixel) & 0x3F;
+    // Calculate palette address
+    uint16_t address = 0x3F00 + (palette_index * 4) + pixel;
+    
+    // Special case: pixel 0 (backdrop/transparent) uses universal backdrop color
+    // All background palettes ($3F00, $3F04, $3F08, $3F0C) share backdrop at $3F00
+    // All sprite palettes ($3F10, $3F14, $3F18, $3F1C) share backdrop at $3F10
+    if (pixel == 0) {
+        address = (palette_index >= 4) ? 0x3F10 : 0x3F00;
+    }
+    
+    uint8_t color_index = ppu_read(address) & 0x3F;
     return PALETTE_COLORS[color_index];
 }
 
@@ -524,6 +643,83 @@ void PPU::update_shifters() {
     }
     
     // Sprite shifting removed - using coordinate based rendering
+}
+
+void PPU::dump_nametable_debug(const char* filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        return;
+    }
+    
+    file << "=== PPU Nametable & Attribute Debug Dump ===" << std::endl;
+    file << "Frame: " << frame_ << std::endl;
+    file << "Scanline: " << scanline_ << ", Cycle: " << cycle_ << std::endl;
+    file << "Scroll: v_=0x" << std::hex << v_ << ", t_=0x" << t_ << ", x_=" << std::dec << (int)x_ << std::endl;
+    file << std::endl;
+    
+    // Dump all 4 nametables
+    for (int nt = 0; nt < 4; nt++) {
+        file << "=== Nametable " << nt << " ($" << std::hex << (0x2000 + nt * 0x400) << ") ===" << std::dec << std::endl;
+        
+        uint16_t nt_base = 0x2000 + (nt * 0x400);
+        
+        // Dump nametable tiles (30 rows x 32 cols)
+        file << "Tiles:" << std::endl;
+        for (int row = 0; row < 30; row++) {
+            for (int col = 0; col < 32; col++) {
+                uint16_t addr = nt_base + (row * 32) + col;
+                uint8_t tile = ppu_read(addr);
+                file << std::hex << std::setw(2) << std::setfill('0') << (int)tile << " ";
+            }
+            file << std::endl;
+        }
+        file << std::endl;
+        
+        // Dump attribute table (8 rows x 8 cols)
+        file << "Attribute Table:" << std::endl;
+        uint16_t attr_base = nt_base + 0x3C0;
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                uint16_t addr = attr_base + (row * 8) + col;
+                uint8_t attr = ppu_read(addr);
+                
+                // Decode attribute byte into 4 quadrants
+                uint8_t tl = (attr >> 0) & 0x03;  // Top-left
+                uint8_t tr = (attr >> 2) & 0x03;  // Top-right
+                uint8_t bl = (attr >> 4) & 0x03;  // Bottom-left
+                uint8_t br = (attr >> 6) & 0x03;  // Bottom-right
+                
+                file << "[" << (int)tl << (int)tr << (int)bl << (int)br << "] ";
+            }
+            file << std::endl;
+        }
+        file << std::endl;
+    }
+    
+    // Dump palette RAM
+    file << "=== Palette RAM ===" << std::endl;
+    file << "Background Palettes:" << std::endl;
+    for (int i = 0; i < 4; i++) {
+        file << "Palette " << i << ": ";
+        for (int j = 0; j < 4; j++) {
+            uint8_t color = ppu_read(0x3F00 + i * 4 + j);
+            file << std::hex << std::setw(2) << std::setfill('0') << (int)color << " ";
+        }
+        file << std::endl;
+    }
+    file << "Sprite Palettes:" << std::endl;
+    for (int i = 0; i < 4; i++) {
+        file << "Palette " << i << ": ";
+        for (int j = 0; j < 4; j++) {
+            uint8_t color = ppu_read(0x3F10 + i * 4 + j);
+            file << std::hex << std::setw(2) << std::setfill('0') << (int)color << " ";
+        }
+        file << std::endl;
+    }
+    
+    file << std::dec << std::endl;
+    file << "=== End of dump ===" << std::endl;
+    file.close();
 }
 
 } // namespace nes

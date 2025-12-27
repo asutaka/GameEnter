@@ -51,6 +51,11 @@ public:
      * @brief Get audio samples generated in the last frame
      */
     const std::vector<float>& get_audio_samples() const;
+    
+    /**
+     * @brief Get PPU for debug access
+     */
+    PPU& get_ppu() { return ppu_; }
 
     // Public access cho testing (TODO: Remove sau khi có proper API)
     CPU cpu_;

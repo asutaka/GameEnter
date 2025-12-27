@@ -134,6 +134,7 @@ int main(int argc, char* argv[]) {
     // Run warmup frames to let PPU initialize
     std::cout << "Running warmup frames..." << std::endl;
     for (int i = 0; i < 10; i++) {
+        std::cout << "Warmup frame " << i << std::endl;
         emu.run_frame();
     }
     
@@ -181,6 +182,11 @@ int main(int argc, char* argv[]) {
                 if (e.key.keysym.sym == SDLK_f) {
                     emu.memory_.write(0x2001, 0x1E);
                     std::cout << "Forced PPUMASK = $1E (rendering enabled)" << std::endl;
+                }
+                // Dump PPU debug (D key)
+                if (e.key.keysym.sym == SDLK_d) {
+                    emu.get_ppu().dump_nametable_debug("ppu_debug_dump.txt");
+                    std::cout << "PPU debug dumped to ppu_debug_dump.txt" << std::endl;
                 }
             }
         }
