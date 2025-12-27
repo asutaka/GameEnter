@@ -14,6 +14,9 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 using namespace nes;
 
 // Screen dimensions
@@ -106,6 +109,56 @@ struct FontSystem {
         if (font_texture) SDL_DestroyTexture(font_texture);
     }
 };
+
+// Helper to load texture from file
+SDL_Texture* load_texture(SDL_Renderer* renderer, const std::string& path) {
+    int w, h, comp;
+    unsigned char* data = stbi_load(path.c_str(), &w, &h, &comp, 4); // Force 4 channels (RGBA)
+    if (!data) return nullptr;
+
+    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (texture) {
+        SDL_UpdateTexture(texture, NULL, data, w * 4);
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    }
+    stbi_image_free(data);
+    return texture;
+}
+
+// Helper to find cover image with fallback logic
+std::string find_cover_image(const std::string& rom_path) {
+    std::string base_path = rom_path.substr(0, rom_path.find_last_of("/\\") + 1);
+    std::string full_filename = rom_path.substr(rom_path.find_last_of("/\\") + 1);
+    std::string name_no_ext = full_filename.substr(0, full_filename.find_last_of("."));
+    
+    std::vector<std::string> search_paths;
+    search_paths.push_back(base_path); // ROM folder
+    search_paths.push_back("images/"); // Images folder
+    
+    std::string search_name = name_no_ext;
+    
+    while (true) {
+        for (const auto& path : search_paths) {
+            // Check PNG
+            std::string png_path = path + search_name + ".png";
+            std::ifstream f_png(png_path);
+            if (f_png.good()) return png_path;
+
+            // Check JPG
+            std::string jpg_path = path + search_name + ".jpg";
+            std::ifstream f_jpg(jpg_path);
+            if (f_jpg.good()) return jpg_path;
+        }
+
+        // Strip last word for next iteration
+        size_t last_space = search_name.find_last_of(" ");
+        if (last_space == std::string::npos) break; // No more spaces, stop
+        
+        search_name = search_name.substr(0, last_space);
+    }
+    
+    return "";
+}
 
 // Helper to draw filled circle
 void draw_filled_circle(SDL_Renderer* renderer, int cx, int cy, int radius) {
@@ -499,6 +552,7 @@ int main(int argc, char* argv[]) {
         std::string rom_path;
         std::string name;
         bool occupied = false;
+        SDL_Texture* cover_texture = nullptr; // Add texture support
     };
     std::vector<Slot> slots(12); // Default 12 slots
     
@@ -513,12 +567,15 @@ int main(int argc, char* argv[]) {
     int scroll_y = 0;
     int scroll_speed = 30;
 
-    // Long Press & Popup State
-    Uint32 mouse_down_time = 0;
+    // Popup & Context Menu State
     int mouse_down_slot = -1;
     bool showing_delete_popup = false;
     int delete_candidate_index = -1;
-    const Uint32 LONG_PRESS_DURATION = 800; // ms
+    
+    bool showing_context_menu = false;
+    int context_menu_slot = -1;
+    int menu_x = 0;
+    int menu_y = 0;
 
     // --- UI SETUP ---
     VirtualJoystick joystick;
@@ -565,15 +622,6 @@ int main(int argc, char* argv[]) {
              }
         }
 
-        // Check Long Press
-        if (current_scene == SCENE_HOME && mouse_down_slot != -1 && !showing_delete_popup) {
-            if (SDL_GetTicks() - mouse_down_time > LONG_PRESS_DURATION) {
-                showing_delete_popup = true;
-                delete_candidate_index = mouse_down_slot;
-                mouse_down_slot = -1; // Stop tracking click
-            }
-        }
-
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) quit = true;
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
@@ -605,7 +653,7 @@ int main(int argc, char* argv[]) {
             // Home Screen Interactions
             if (current_scene == SCENE_HOME) {
                 // Scrolling
-                if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup) {
+                if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup && !showing_context_menu) {
                     scroll_y -= e.wheel.y * scroll_speed;
                     if (scroll_y < 0) scroll_y = 0;
                     
@@ -634,6 +682,9 @@ int main(int argc, char* argv[]) {
                         if (mx >= cx - 110 && mx <= cx - 10 && my >= cy + 20 && my <= cy + 60) {
                             // Delete
                             if (delete_candidate_index >= 0 && delete_candidate_index < (int)slots.size()) {
+                                if (slots[delete_candidate_index].cover_texture) {
+                                    SDL_DestroyTexture(slots[delete_candidate_index].cover_texture);
+                                }
                                 slots.erase(slots.begin() + delete_candidate_index);
                                 // Ensure min size
                                 while (slots.size() < 12) slots.push_back(Slot());
@@ -645,6 +696,40 @@ int main(int argc, char* argv[]) {
                         else if (mx >= cx + 10 && mx <= cx + 110 && my >= cy + 20 && my <= cy + 60) {
                             showing_delete_popup = false;
                             delete_candidate_index = -1;
+                        }
+                    } else if (showing_context_menu) {
+                        // Handle Context Menu Clicks
+                        int w = 150; int h = 80;
+                        // Add Shortcut
+                        if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + 40) {
+                            // Create Shortcut (Batch file on Desktop)
+                            if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
+                                std::string desktop_path = getenv("USERPROFILE");
+                                desktop_path += "\\Desktop\\";
+                                std::string bat_path = desktop_path + slots[context_menu_slot].name + ".bat";
+                                std::ofstream bat_file(bat_path);
+                                if (bat_file.is_open()) {
+                                    char buffer[MAX_PATH];
+                                    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+                                    std::string exe_path = buffer;
+                                    std::string rom_path = slots[context_menu_slot].rom_path;
+                                    
+                                    bat_file << "@echo off" << std::endl;
+                                    bat_file << "start \"\" \"" << exe_path << "\" \"" << rom_path << "\"" << std::endl;
+                                    bat_file.close();
+                                }
+                            }
+                            showing_context_menu = false;
+                        }
+                        // Delete
+                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + 40 && my <= menu_y + 80) {
+                            delete_candidate_index = context_menu_slot;
+                            showing_delete_popup = true;
+                            showing_context_menu = false;
+                        }
+                        // Click outside -> Close
+                        else {
+                            showing_context_menu = false;
                         }
                     } else {
                         // Grid Clicks
@@ -678,17 +763,42 @@ int main(int argc, char* argv[]) {
                                     std::string path = open_file_dialog();
                                     if (!path.empty()) {
                                         slots[i].rom_path = path;
+                                        // Extract filename for name
                                         size_t last_slash = path.find_last_of("/\\");
                                         std::string filename = (last_slash == std::string::npos) ? path : path.substr(last_slash + 1);
+                                        
+                                        // Remove extension
                                         size_t last_dot = filename.find_last_of(".");
                                         if (last_dot != std::string::npos) filename = filename.substr(0, last_dot);
+                                        
                                         slots[i].name = filename;
                                         slots[i].occupied = true;
+
+                                        // Try to load cover image
+                                        std::string cover_path = find_cover_image(path);
+                                        if (!cover_path.empty()) {
+                                            slots[i].cover_texture = load_texture(renderer, cover_path);
+                                        }
                                     }
                                 } else if (slots[i].occupied) {
-                                    // Start Long Press Timer
-                                    mouse_down_slot = (int)i;
-                                    mouse_down_time = SDL_GetTicks();
+                                    // Check if clicked on "3 dots" area (Top Right)
+                                    int dots_x = sx + slot_w - 30;
+                                    int dots_y = sy + 10;
+                                    int dots_w = 20;
+                                    int dots_h = 30;
+                                    
+                                    if (mx >= dots_x && mx <= dots_x + dots_w && adj_my >= dots_y && adj_my <= dots_y + dots_h) {
+                                        showing_context_menu = true;
+                                        context_menu_slot = (int)i;
+                                        menu_x = mx;
+                                        menu_y = my;
+                                        // Adjust if menu goes off screen
+                                        if (menu_x + 150 > SCREEN_WIDTH * SCALE) menu_x -= 150;
+                                        if (menu_y + 80 > SCREEN_HEIGHT * SCALE) menu_y -= 80;
+                                    } else {
+                                        // Normal Click -> Load Game
+                                        mouse_down_slot = (int)i;
+                                    }
                                 }
                             }
                         }
@@ -696,7 +806,7 @@ int main(int argc, char* argv[]) {
                 }
                 
                 if (e.type == SDL_MOUSEBUTTONUP) {
-                    if (!showing_delete_popup && mouse_down_slot != -1) {
+                    if (!showing_delete_popup && !showing_context_menu && mouse_down_slot != -1) {
                         // Short Click -> Load Game
                         int i = mouse_down_slot;
                         if (i >= 0 && i < (int)slots.size() && slots[i].occupied) {
@@ -772,18 +882,59 @@ int main(int argc, char* argv[]) {
                 } else if (slots[i].occupied) {
                     // --- Occupied Slot ---
                     
-                    // Draw Default Cartridge Icon
-                    draw_nes_cartridge(renderer, sx + slot_w/2, sy + slot_h/2 - 20, 8);
+                    if (slots[i].cover_texture) {
+                        // Draw Cover Image with Aspect Ratio & Style
+                        int img_w, img_h;
+                        SDL_QueryTexture(slots[i].cover_texture, NULL, NULL, &img_w, &img_h);
 
-                    // Draw Name at bottom (like Add ROM)
+                        int max_w = slot_w - 20;
+                        int max_h = slot_h - 60;
+                        
+                        float scale_w = (float)max_w / img_w;
+                        float scale_h = (float)max_h / img_h;
+                        float scale = (scale_w < scale_h) ? scale_w : scale_h;
+                        int final_w = (int)(img_w * scale);
+                        int final_h = (int)(img_h * scale);
+
+                        int img_x = sx + (slot_w - final_w) / 2;
+                        int img_y = sy + 10 + (max_h - final_h) / 2; // Center vertically in the image area
+                        
+                        SDL_Rect dst = {img_x, img_y, final_w, final_h};
+
+                        // 1. Drop Shadow
+                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 50); // Soft shadow
+                        SDL_Rect shadow = {img_x + 4, img_y + 4, final_w, final_h};
+                        SDL_RenderFillRect(renderer, &shadow);
+                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                        // 2. Image
+                        SDL_RenderCopy(renderer, slots[i].cover_texture, NULL, &dst);
+
+                        // 3. Border
+                        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Light grey border
+                        SDL_RenderDrawRect(renderer, &dst);
+                    } else {
+                        // Draw Default Cartridge Icon
+                        draw_nes_cartridge(renderer, sx + slot_w/2, sy + slot_h/2 - 20, 8);
+                    }
+
+                    // Draw Name at bottom
                     std::string display_name = slots[i].name;
                     if (display_name.length() > 18) display_name = display_name.substr(0, 15) + "...";
                     
-                    // Center text accurately
                     float text_w = font_body.get_text_width(display_name);
                     int tx = sx + (slot_w - (int)text_w) / 2;
                     
                     font_body.draw_text(renderer, display_name, tx, sy + slot_h - 40, {34, 43, 50, 255});
+
+                    // Draw 3 Dots Menu Icon (Top Right)
+                    int dx = sx + slot_w - 20;
+                    int dy = sy + 25;
+                    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+                    draw_filled_circle(renderer, dx, dy - 6, 3);
+                    draw_filled_circle(renderer, dx, dy, 3);
+                    draw_filled_circle(renderer, dx, dy + 6, 3);
                 }
             }
 
@@ -814,6 +965,35 @@ int main(int argc, char* argv[]) {
             draw_filled_circle(renderer, mx, my - 15, 4);
             draw_filled_circle(renderer, mx, my, 4);
             draw_filled_circle(renderer, mx, my + 15, 4);
+
+            // --- CONTEXT MENU ---
+            if (showing_context_menu) {
+                int w = 150; int h = 80;
+                SDL_Rect menu = {menu_x, menu_y, w, h};
+                
+                // Shadow
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 50);
+                SDL_Rect shadow = {menu_x + 5, menu_y + 5, w, h};
+                SDL_RenderFillRect(renderer, &shadow);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                // Menu BG
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderFillRect(renderer, &menu);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                SDL_RenderDrawRect(renderer, &menu);
+
+                // Add Shortcut Item
+                font_small.draw_text(renderer, "Add Shortcut", menu_x + 10, menu_y + 25, {0, 0, 0, 255});
+                
+                // Separator
+                SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
+                SDL_RenderDrawLine(renderer, menu_x, menu_y + 40, menu_x + w, menu_y + 40);
+
+                // Delete Item
+                font_small.draw_text(renderer, "Delete", menu_x + 10, menu_y + 65, {200, 50, 50, 255});
+            }
 
             // --- POPUP ---
             if (showing_delete_popup) {
