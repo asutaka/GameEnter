@@ -77,15 +77,15 @@ bool PPU::step() {
         }
 
         if (rendering) {
+            // Background processing: Visible cycles and Pre-fetch (321-336)
             if ((cycle_ >= 1 && cycle_ <= 256) || (cycle_ >= 321 && cycle_ <= 336)) {
-                // Only shift during visible cycles and the FIRST part of pre-fetch (321-328)
-                // This ensures Tile 1 moves to High Byte, and Tile 2 stays in Low Byte.
-                if (cycle_ <= 256 || cycle_ <= 328) {
-                    update_shifters();
-                }
+                // Shift registers every cycle
+                update_shifters();
                 
-                // Fetch tile every 8 cycles (at cycles 1, 9, 17, 25, ...)
-                if (((cycle_ - 1) % 8) == 0) {
+                // Fetch tile every 8 cycles (at cycles 8, 16, 24, ...)
+                // This allows the shifters to fully shift the previous tile into the high byte
+                // before loading the new tile into the low byte.
+                if (cycle_ % 8 == 0) {
                     fetch_background_tile();
                 }
             }
@@ -342,34 +342,45 @@ void PPU::render_pixel() {
     uint8_t bg_pixel = 0;
     uint8_t bg_palette = 0;
     if (mask_.show_bg) {
-        uint16_t bit_mux = 0x8000 >> x_;
-        uint8_t p0 = (bg_shifters_.pattern_lo & bit_mux) ? 1 : 0;
-        uint8_t p1 = (bg_shifters_.pattern_hi & bit_mux) ? 1 : 0;
-        bg_pixel = (p1 << 1) | p0;
-        uint8_t a0 = (bg_shifters_.attribute_lo & bit_mux) ? 1 : 0;
-        uint8_t a1 = (bg_shifters_.attribute_hi & bit_mux) ? 1 : 0;
-        bg_palette = (a1 << 1) | a0;
+        if (!mask_.show_bg_left && cycle_ <= 8) {
+            bg_pixel = 0;
+        } else {
+            uint16_t bit_mux = 0x8000 >> x_;
+            uint8_t p0 = (bg_shifters_.pattern_lo & bit_mux) ? 1 : 0;
+            uint8_t p1 = (bg_shifters_.pattern_hi & bit_mux) ? 1 : 0;
+            bg_pixel = (p1 << 1) | p0;
+            uint8_t a0 = (bg_shifters_.attribute_lo & bit_mux) ? 1 : 0;
+            uint8_t a1 = (bg_shifters_.attribute_hi & bit_mux) ? 1 : 0;
+            bg_palette = (a1 << 1) | a0;
+        }
     }
     
     uint8_t sprite_pixel = 0;
     uint8_t sprite_palette = 0;
     bool sprite_priority = false;
     if (mask_.show_sprites) {
-        for (int i = 0; i < sprite_count_; i++) {
-            if (sprite_shifters_[i].x == 0) {
-                uint8_t p0 = (sprite_shifters_[i].pattern_lo & 0x80) ? 1 : 0;
-                uint8_t p1 = (sprite_shifters_[i].pattern_hi & 0x80) ? 1 : 0;
-                uint8_t pixel = (p1 << 1) | p0;
-                
-                if (pixel != 0) {
-                    sprite_palette = sprite_shifters_[i].attributes & 0x03;
-                    sprite_pixel = pixel;
-                    sprite_priority = (sprite_shifters_[i].attributes & 0x20) != 0;
+        if (!mask_.show_sprites_left && cycle_ <= 8) {
+            sprite_pixel = 0;
+        } else {
+            for (int i = 0; i < sprite_count_; i++) {
+                // Coordinate-based sprite rendering (more stable than shifting)
+                int diff = cycle_ - 1 - sprite_shifters_[i].x;
+                if (diff >= 0 && diff < 8) {
+                    uint8_t bit_mask = 0x80 >> diff;
+                    uint8_t p0 = (sprite_shifters_[i].pattern_lo & bit_mask) ? 1 : 0;
+                    uint8_t p1 = (sprite_shifters_[i].pattern_hi & bit_mask) ? 1 : 0;
+                    uint8_t pixel = (p1 << 1) | p0;
                     
-                    if (sprite_shifters_[i].is_sprite_0 && bg_pixel != 0 && cycle_ < 256) {
-                        status_.sprite_0_hit = 1;
+                    if (pixel != 0) {
+                        sprite_palette = sprite_shifters_[i].attributes & 0x03;
+                        sprite_pixel = pixel;
+                        sprite_priority = (sprite_shifters_[i].attributes & 0x20) != 0;
+                        
+                        if (sprite_shifters_[i].is_sprite_0 && bg_pixel != 0 && cycle_ < 256) {
+                            status_.sprite_0_hit = 1;
+                        }
+                        break;
                     }
-                    break;
                 }
             }
         }
@@ -419,7 +430,10 @@ void PPU::fetch_background_tile() {
     bg_shifters_.attribute_lo = (bg_shifters_.attribute_lo & 0xFF00) | ((pal & 0x01) ? 0xFF : 0x00);
     bg_shifters_.attribute_hi = (bg_shifters_.attribute_hi & 0xFF00) | ((pal & 0x02) ? 0xFF : 0x00);
     
-    if (cycle_ >= 1 && cycle_ <= 256) increment_scroll_x();
+    // Increment scroll X during visible lines AND pre-fetch (321-336)
+    if ((cycle_ >= 1 && cycle_ <= 256) || (cycle_ >= 321 && cycle_ <= 336)) {
+        increment_scroll_x();
+    }
 }
 
 void PPU::evaluate_sprites() {
@@ -509,16 +523,7 @@ void PPU::update_shifters() {
         bg_shifters_.attribute_hi <<= 1;
     }
     
-    if (mask_.show_sprites && cycle_ >= 1 && cycle_ <= 256) {
-        for (int i = 0; i < sprite_count_; i++) {
-            if (sprite_shifters_[i].x > 0) {
-                sprite_shifters_[i].x--;
-            } else {
-                sprite_shifters_[i].pattern_lo <<= 1;
-                sprite_shifters_[i].pattern_hi <<= 1;
-            }
-        }
-    }
+    // Sprite shifting removed - using coordinate based rendering
 }
 
 } // namespace nes
