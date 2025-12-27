@@ -3,10 +3,10 @@
 
 #include <cstdint>
 #include <array>
+#include <vector>
 
 namespace nes {
 
-// Forward declaration
 class Cartridge;
 
 /**
@@ -59,6 +59,12 @@ public:
     // Debug getters
     int get_scanline() const { return scanline_; }
     int get_cycle() const { return cycle_; }
+    
+    // Audio samples (placeholder for now)
+    const std::vector<float>& get_audio_samples() const { 
+        static std::vector<float> empty; 
+        return empty; 
+    }
 
 private:
     // ==================
@@ -207,6 +213,7 @@ private:
     void fetch_background_tile();
     void evaluate_sprites();
     void load_sprites();
+    void update_shifters();
     
     // Scrolling
     void increment_scroll_x();

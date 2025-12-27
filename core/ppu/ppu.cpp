@@ -5,8 +5,7 @@
 
 namespace nes {
 
-// NES Color Palette (NTSC) - 64 màu
-// Format: 0xAARRGGBB
+// NES Color Palette (NTSC) - 64 colors
 const uint32_t PPU::PALETTE_COLORS[64] = {
     0xFF666666, 0xFF002A88, 0xFF1412A7, 0xFF3B00A4, 0xFF5C007E, 0xFF6E0040, 0xFF6C0600, 0xFF561D00,
     0xFF333500, 0xFF0B4800, 0xFF005200, 0xFF004F08, 0xFF00404D, 0xFF000000, 0xFF000000, 0xFF000000,
@@ -70,12 +69,11 @@ bool PPU::step() {
     bool frame_complete = false;
     bool rendering = rendering_enabled();
     
-    // Visible scanlines (0-239) và pre-render (261)
+    // Visible scanlines (0-239) and pre-render (261)
     if (scanline_ < 240 || scanline_ == 261) {
-        // Background tile fetching happens at cycles 1-256 and 321-336
-        // Each tile takes 8 cycles to fetch, so we fetch at cycles: 1, 9, 17, 25, ..., 249, 321, 329
         if (rendering) {
             if ((cycle_ >= 1 && cycle_ <= 256) || (cycle_ >= 321 && cycle_ <= 336)) {
+                update_shifters();
                 // Fetch tile every 8 cycles (at cycles 1, 9, 17, 25, ...)
                 if (((cycle_ - 1) % 8) == 0) {
                     fetch_background_tile();
@@ -397,11 +395,6 @@ void PPU::render_pixel() {
     framebuffer_[index + 1] = (color >> 8) & 0xFF;  // G
     framebuffer_[index + 2] = color & 0xFF;         // B
     framebuffer_[index + 3] = (color >> 24) & 0xFF; // A
-    
-    bg_shifters_.pattern_lo <<= 1;
-    bg_shifters_.pattern_hi <<= 1;
-    bg_shifters_.attribute_lo <<= 1;
-    bg_shifters_.attribute_hi <<= 1;
 }
 
 void PPU::fetch_background_tile() {
@@ -501,6 +494,18 @@ void PPU::copy_vertical_position() { v_ = (v_ & 0x841F) | (t_ & 0x7BE0); }
 uint32_t PPU::get_color_from_palette(uint8_t palette_index, uint8_t pixel) {
     uint8_t color_index = ppu_read(0x3F00 + (palette_index * 4) + pixel) & 0x3F;
     return PALETTE_COLORS[color_index];
+}
+
+void PPU::update_shifters() {
+    if (mask_.show_bg) {
+        bg_shifters_.pattern_lo <<= 1;
+        bg_shifters_.pattern_hi <<= 1;
+        bg_shifters_.attribute_lo <<= 1;
+        bg_shifters_.attribute_hi <<= 1;
+    }
+    
+    // Sprite shifting removed because render_pixel uses coordinate-based logic
+    // if (mask_.show_sprites && cycle_ >= 1 && cycle_ <= 256) { ... }
 }
 
 } // namespace nes
