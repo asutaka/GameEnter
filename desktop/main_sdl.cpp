@@ -89,6 +89,19 @@ struct FontSystem {
         }
     }
 
+    float get_text_width(const std::string& text) {
+        float x = 0;
+        float y = 0;
+        for (char c : text) {
+            if (c < 32 || c >= 128) c = '?';
+            if (c >= 32 && c < 128) {
+                stbtt_aligned_quad q;
+                stbtt_GetBakedQuad(cdata, texture_width, texture_height, c - 32, &x, &y, &q, 0);
+            }
+        }
+        return x;
+    }
+
     void cleanup() {
         if (font_texture) SDL_DestroyTexture(font_texture);
     }
@@ -144,6 +157,45 @@ void draw_filled_triangle(SDL_Renderer* renderer, int x1, int y1, int x2, int y2
     SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
     SDL_RenderDrawLine(renderer, x2, y2, x3, y3);
     SDL_RenderDrawLine(renderer, x3, y3, x1, y1);
+}
+
+// Helper to draw NES Cartridge Icon
+void draw_nes_cartridge(SDL_Renderer* renderer, int x, int y, int scale) {
+    // Colors
+    SDL_Color body_col = {120, 144, 156, 255}; // Blue Grey 400
+    SDL_Color dark_col = {55, 71, 79, 255};    // Blue Grey 800
+    SDL_Color label_col = {207, 216, 220, 255};// Blue Grey 100
+    SDL_Color accent_col = {180, 20, 20, 255}; // Red Accent
+
+    int w = 14 * scale;
+    int h = 16 * scale;
+
+    // 1. Main Body
+    SDL_SetRenderDrawColor(renderer, body_col.r, body_col.g, body_col.b, body_col.a);
+    SDL_Rect body = {x - w/2, y - h/2, w, h};
+    SDL_RenderFillRect(renderer, &body);
+
+    // 2. Grip Lines (Top)
+    SDL_SetRenderDrawColor(renderer, dark_col.r, dark_col.g, dark_col.b, dark_col.a);
+    for(int i=0; i<3; i++) {
+        SDL_Rect grip = {x - w/2 + 2*scale + i*4*scale, y - h/2, 2*scale, 3*scale};
+        SDL_RenderFillRect(renderer, &grip);
+    }
+
+    // 3. Label Area
+    SDL_SetRenderDrawColor(renderer, label_col.r, label_col.g, label_col.b, label_col.a);
+    SDL_Rect label = {x - w/2 + 2*scale, y - h/2 + 4*scale, w - 4*scale, h - 6*scale};
+    SDL_RenderFillRect(renderer, &label);
+
+    // 4. Label Accent (Red Stripe)
+    SDL_SetRenderDrawColor(renderer, accent_col.r, accent_col.g, accent_col.b, accent_col.a);
+    SDL_Rect stripe = {x - w/2 + 2*scale, y - h/2 + 5*scale, w - 4*scale, 2*scale};
+    SDL_RenderFillRect(renderer, &stripe);
+
+    // 5. Connector (Bottom)
+    SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
+    SDL_Rect conn = {x - w/2 + 1*scale, y + h/2 - 1*scale, w - 2*scale, 1*scale};
+    SDL_RenderFillRect(renderer, &conn);
 }
 
 // Virtual Joystick Class
@@ -461,6 +513,13 @@ int main(int argc, char* argv[]) {
     int scroll_y = 0;
     int scroll_speed = 30;
 
+    // Long Press & Popup State
+    Uint32 mouse_down_time = 0;
+    int mouse_down_slot = -1;
+    bool showing_delete_popup = false;
+    int delete_candidate_index = -1;
+    const Uint32 LONG_PRESS_DURATION = 800; // ms
+
     // --- UI SETUP ---
     VirtualJoystick joystick;
     joystick.init(100, (SCREEN_HEIGHT * SCALE) - 100, 60);
@@ -491,6 +550,29 @@ int main(int argc, char* argv[]) {
     
     while (!quit) {
         auto frame_start = std::chrono::high_resolution_clock::now();
+
+        // Ensure we always have an empty slot for "Add ROM" in Home Screen
+        if (current_scene == SCENE_HOME) {
+             bool full = true;
+             for (const auto& s : slots) {
+                 if (!s.occupied) {
+                     full = false;
+                     break;
+                 }
+             }
+             if (full) {
+                 slots.resize(slots.size() + 3);
+             }
+        }
+
+        // Check Long Press
+        if (current_scene == SCENE_HOME && mouse_down_slot != -1 && !showing_delete_popup) {
+            if (SDL_GetTicks() - mouse_down_time > LONG_PRESS_DURATION) {
+                showing_delete_popup = true;
+                delete_candidate_index = mouse_down_slot;
+                mouse_down_slot = -1; // Stop tracking click
+            }
+        }
 
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) quit = true;
@@ -523,7 +605,7 @@ int main(int argc, char* argv[]) {
             // Home Screen Interactions
             if (current_scene == SCENE_HOME) {
                 // Scrolling
-                if (e.type == SDL_MOUSEWHEEL) {
+                if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup) {
                     scroll_y -= e.wheel.y * scroll_speed;
                     if (scroll_y < 0) scroll_y = 0;
                     
@@ -541,66 +623,94 @@ int main(int argc, char* argv[]) {
                 if (e.type == SDL_MOUSEBUTTONDOWN) {
                     int mx = e.button.x;
                     int my = e.button.y;
-                    int adj_my = my + scroll_y;
 
-                    int slot_w = 200;
-                    int slot_h = 250;
-                    int gap = 20;
-                    int cols = 3;
-                    int start_x = (SCREEN_WIDTH * SCALE - (cols*slot_w + (cols-1)*gap)) / 2;
-                    int start_y = 150;
-
-                    // Find first empty slot for Add Button
-                    int add_btn_index = -1;
-                    for (size_t k = 0; k < slots.size(); ++k) {
-                        if (!slots[k].occupied) {
-                            add_btn_index = (int)k;
-                            break;
-                        }
-                    }
-                    // If full, expand
-                    if (add_btn_index == -1) {
-                        slots.resize(slots.size() + 3);
-                        add_btn_index = (int)slots.size() - 3;
-                    }
-
-                    for (size_t i=0; i<slots.size(); i++) {
-                        int col = i % cols;
-                        int row = (int)i / cols;
+                    if (showing_delete_popup) {
+                        // Handle Popup Clicks
+                        int cx = (SCREEN_WIDTH * SCALE) / 2;
+                        int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                        int bw = 100; int bh = 40;
                         
-                        int sx = start_x + col * (slot_w + gap);
-                        int sy = start_y + row * (slot_h + gap);
+                        // Yes Button
+                        if (mx >= cx - 110 && mx <= cx - 10 && my >= cy + 20 && my <= cy + 60) {
+                            // Delete
+                            if (delete_candidate_index >= 0 && delete_candidate_index < (int)slots.size()) {
+                                slots.erase(slots.begin() + delete_candidate_index);
+                                // Ensure min size
+                                while (slots.size() < 12) slots.push_back(Slot());
+                            }
+                            showing_delete_popup = false;
+                            delete_candidate_index = -1;
+                        }
+                        // No Button
+                        else if (mx >= cx + 10 && mx <= cx + 110 && my >= cy + 20 && my <= cy + 60) {
+                            showing_delete_popup = false;
+                            delete_candidate_index = -1;
+                        }
+                    } else {
+                        // Grid Clicks
+                        int adj_my = my + scroll_y;
+                        int slot_w = 200;
+                        int slot_h = 250;
+                        int gap = 20;
+                        int cols = 3;
+                        int start_x = (SCREEN_WIDTH * SCALE - (cols*slot_w + (cols-1)*gap)) / 2;
+                        int start_y = 150;
 
-                        if (mx >= sx && mx <= sx+slot_w && adj_my >= sy && adj_my <= sy+slot_h) {
-                            if (i == add_btn_index) {
-                                // Add ROM
-                                std::string path = open_file_dialog();
-                                if (!path.empty()) {
-                                    slots[i].rom_path = path;
-                                    // Extract filename for name
-                                    size_t last_slash = path.find_last_of("/\\");
-                                    std::string filename = (last_slash == std::string::npos) ? path : path.substr(last_slash + 1);
-                                    
-                                    // Remove extension
-                                    size_t last_dot = filename.find_last_of(".");
-                                    if (last_dot != std::string::npos) filename = filename.substr(0, last_dot);
-                                    
-                                    slots[i].name = filename;
-                                    slots[i].occupied = true;
-                                }
-                            } else if (slots[i].occupied) {
-                                // Load Game
-                                if (emu.load_rom(slots[i].rom_path.c_str())) {
-                                    emu.reset();
-                                    for (int k = 0; k < 10; k++) emu.run_frame();
-                                    emu.memory_.read(0x2002);
-                                    emu.memory_.write(0x2006, 0x3F); emu.memory_.write(0x2006, 0x00);
-                                    emu.memory_.write(0x2007, 0x0F); emu.memory_.write(0x2007, 0x30);
-                                    emu.memory_.write(0x2007, 0x16); emu.memory_.write(0x2007, 0x27);
-                                    current_scene = SCENE_GAME;
+                        // Find Add Button Index
+                        int add_btn_index = -1;
+                        for (size_t k = 0; k < slots.size(); ++k) {
+                            if (!slots[k].occupied) {
+                                add_btn_index = (int)k;
+                                break;
+                            }
+                        }
+
+                        for (size_t i=0; i<slots.size(); i++) {
+                            int col = i % cols;
+                            int row = (int)i / cols;
+                            
+                            int sx = start_x + col * (slot_w + gap);
+                            int sy = start_y + row * (slot_h + gap);
+
+                            if (mx >= sx && mx <= sx+slot_w && adj_my >= sy && adj_my <= sy+slot_h) {
+                                if (i == add_btn_index) {
+                                    // Add ROM (Immediate Action)
+                                    std::string path = open_file_dialog();
+                                    if (!path.empty()) {
+                                        slots[i].rom_path = path;
+                                        size_t last_slash = path.find_last_of("/\\");
+                                        std::string filename = (last_slash == std::string::npos) ? path : path.substr(last_slash + 1);
+                                        size_t last_dot = filename.find_last_of(".");
+                                        if (last_dot != std::string::npos) filename = filename.substr(0, last_dot);
+                                        slots[i].name = filename;
+                                        slots[i].occupied = true;
+                                    }
+                                } else if (slots[i].occupied) {
+                                    // Start Long Press Timer
+                                    mouse_down_slot = (int)i;
+                                    mouse_down_time = SDL_GetTicks();
                                 }
                             }
                         }
+                    }
+                }
+                
+                if (e.type == SDL_MOUSEBUTTONUP) {
+                    if (!showing_delete_popup && mouse_down_slot != -1) {
+                        // Short Click -> Load Game
+                        int i = mouse_down_slot;
+                        if (i >= 0 && i < (int)slots.size() && slots[i].occupied) {
+                             if (emu.load_rom(slots[i].rom_path.c_str())) {
+                                emu.reset();
+                                for (int k = 0; k < 10; k++) emu.run_frame();
+                                emu.memory_.read(0x2002);
+                                emu.memory_.write(0x2006, 0x3F); emu.memory_.write(0x2006, 0x00);
+                                emu.memory_.write(0x2007, 0x0F); emu.memory_.write(0x2007, 0x30);
+                                emu.memory_.write(0x2007, 0x16); emu.memory_.write(0x2007, 0x27);
+                                current_scene = SCENE_GAME;
+                            }
+                        }
+                        mouse_down_slot = -1;
                     }
                 }
             }
@@ -651,37 +761,45 @@ int main(int argc, char* argv[]) {
                     draw_filled_circle(renderer, cx, cy, 40);
                     
                     // Plus Sign
-                    SDL_SetRenderDrawColor(renderer, 180, 20, 20, 255);
+                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
                     SDL_Rect rv = {cx - 3, cy - 20, 6, 40};
                     SDL_Rect rh = {cx - 20, cy - 3, 40, 6};
                     SDL_RenderFillRect(renderer, &rv);
                     SDL_RenderFillRect(renderer, &rh);
 
-                    font_body.draw_text(renderer, "Add ROM", sx + 60, sy + slot_h - 40, {180, 20, 20, 255});
+                    font_body.draw_text(renderer, "Add ROM", sx + 60, sy + slot_h - 40, {34, 43, 50, 255});
 
                 } else if (slots[i].occupied) {
                     // --- Occupied Slot ---
+                    
+                    // Draw Default Cartridge Icon
+                    draw_nes_cartridge(renderer, sx + slot_w/2, sy + slot_h/2 - 20, 8);
+
                     // Draw Name at bottom (like Add ROM)
-                    // Truncate name if too long
                     std::string display_name = slots[i].name;
                     if (display_name.length() > 18) display_name = display_name.substr(0, 15) + "...";
                     
-                    // Center text roughly
-                    int text_len = display_name.length() * 10; // Approx width
-                    int tx = sx + (slot_w - text_len) / 2; 
-                    if (tx < sx + 10) tx = sx + 10;
-
-                    font_body.draw_text(renderer, display_name, tx, sy + slot_h - 40, {0, 0, 0, 255});
-                } else {
-                    // --- Empty Slot ---
-                    // Blank
+                    // Center text accurately
+                    float text_w = font_body.get_text_width(display_name);
+                    int tx = sx + (slot_w - (int)text_w) / 2;
+                    
+                    font_body.draw_text(renderer, display_name, tx, sy + slot_h - 40, {34, 43, 50, 255});
                 }
             }
 
             // --- HEADER (Draw last to be on top of scrolling content) ---
-            SDL_SetRenderDrawColor(renderer, 180, 20, 20, 255); // Red
-            SDL_Rect header = {0, 0, SCREEN_WIDTH * SCALE, 100};
-            SDL_RenderFillRect(renderer, &header);
+            // Gradient Header: Deep Dark
+            // Start: #222B32 (34, 43, 50)
+            // End:   #263238 (38, 50, 56)
+            int header_h = 100;
+            for (int y = 0; y < header_h; y++) {
+                float t = (float)y / (float)header_h;
+                Uint8 r = (Uint8)(34 + t * (38 - 34));
+                Uint8 g = (Uint8)(43 + t * (50 - 43));
+                Uint8 b = (Uint8)(50 + t * (56 - 50));
+                SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+                SDL_RenderDrawLine(renderer, 0, y, SCREEN_WIDTH * SCALE, y);
+            }
 
             // Title
             font_title.draw_text(renderer, "Game Enter NES", 20, 50, {255, 255, 255, 255});
@@ -696,6 +814,44 @@ int main(int argc, char* argv[]) {
             draw_filled_circle(renderer, mx, my - 15, 4);
             draw_filled_circle(renderer, mx, my, 4);
             draw_filled_circle(renderer, mx, my + 15, 4);
+
+            // --- POPUP ---
+            if (showing_delete_popup) {
+                // Overlay
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+                SDL_Rect overlay = {0, 0, SCREEN_WIDTH * SCALE, SCREEN_HEIGHT * SCALE};
+                SDL_RenderFillRect(renderer, &overlay);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                // Popup Box
+                int cx = (SCREEN_WIDTH * SCALE) / 2;
+                int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                int pw = 400; int ph = 200;
+                SDL_Rect popup = {cx - pw/2, cy - ph/2, pw, ph};
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderFillRect(renderer, &popup);
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+                SDL_RenderDrawRect(renderer, &popup);
+
+                // Text
+                std::string msg = "Delete " + slots[delete_candidate_index].name + "?";
+                float tw = font_body.get_text_width(msg);
+                font_body.draw_text(renderer, msg, cx - tw/2, cy - 40, {0, 0, 0, 255});
+
+                // Buttons
+                // Yes
+                SDL_Rect btnYes = {cx - 110, cy + 20, 100, 40};
+                SDL_SetRenderDrawColor(renderer, 200, 50, 50, 255); // Red
+                SDL_RenderFillRect(renderer, &btnYes);
+                font_body.draw_text(renderer, "Yes", cx - 110 + 35, cy + 20 + 28, {255, 255, 255, 255});
+
+                // No
+                SDL_Rect btnNo = {cx + 10, cy + 20, 100, 40};
+                SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255); // Gray
+                SDL_RenderFillRect(renderer, &btnNo);
+                font_body.draw_text(renderer, "No", cx + 10 + 40, cy + 20 + 28, {255, 255, 255, 255});
+            }
 
         } else {
             // --- GAME SCENE ---
