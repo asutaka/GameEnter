@@ -10,6 +10,8 @@
 #include <vector>
 #include <algorithm>
 #include <fstream>
+#include <sstream>
+#include <filesystem> // Added for directory creation
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -18,6 +20,7 @@
 #include "stb_image.h"
 
 using namespace nes;
+namespace fs = std::filesystem; // Alias for convenience
 
 // Screen dimensions
 const int SCREEN_WIDTH = 256;
@@ -486,6 +489,128 @@ void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joyst
 
 enum Scene { SCENE_HOME, SCENE_GAME };
 
+// QuickBall Class
+struct QuickBall {
+    int x, y, r;
+    bool expanded;
+    
+    struct Item {
+        int x, y, r;
+        int id; // 0: Share, 1: Snapshot, 2: Reset, 3: Home
+    };
+    std::vector<Item> items;
+
+    void init(int start_x, int start_y) {
+        x = start_x; y = start_y; r = 25;
+        expanded = false;
+        items.clear();
+        // Expand Upwards (Fan out)
+        // 1. Share (Left)
+        items.push_back({x - 60, y - 10, 20, 0});
+        // 2. Snapshot (Up-Left)
+        items.push_back({x - 40, y - 50, 20, 1});
+        // 3. Reset (Up-Right)
+        items.push_back({x + 40, y - 50, 20, 2});
+        // 4. Home (Right)
+        items.push_back({x + 60, y - 10, 20, 3});
+    }
+
+    bool handle_event(const SDL_Event& e, Scene& scene, Emulator& emu) {
+        if (e.type == SDL_MOUSEBUTTONDOWN) {
+            int mx = e.button.x;
+            int my = e.button.y;
+            int dx = mx - x; int dy = my - y;
+            if (dx*dx + dy*dy <= r*r) {
+                expanded = !expanded;
+                return true;
+            }
+            if (expanded) {
+                for (const auto& item : items) {
+                    int idx = mx - item.x; int idy = my - item.y;
+                    if (idx*idx + idy*idy <= item.r*item.r) {
+                        if (item.id == 0) { // Share
+                             std::cout << "[QuickBall] Share: Not Implemented" << std::endl;
+                        } else if (item.id == 1) { // Snapshot
+                             const uint8_t* fb = emu.get_framebuffer();
+                             SDL_Surface* ss = SDL_CreateRGBSurfaceWithFormatFrom((void*)fb, 256, 240, 32, 256*4, SDL_PIXELFORMAT_RGBA32);
+                             if (ss) {
+                                 // Ensure directory exists
+                                 if (!fs::exists("snapshots")) {
+                                     fs::create_directory("snapshots");
+                                 }
+
+                                 auto now = std::chrono::system_clock::now();
+                                 auto in_time_t = std::chrono::system_clock::to_time_t(now);
+                                 std::stringstream ss_name;
+                                 ss_name << "snapshots/snapshot_" << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".bmp";
+                                 SDL_SaveBMP(ss, ss_name.str().c_str());
+                                 SDL_FreeSurface(ss);
+                                 std::cout << "[QuickBall] Snapshot saved: " << ss_name.str() << std::endl;
+                             }
+                        } else if (item.id == 2) { // Reset
+                            emu.reset();
+                        } else if (item.id == 3) { // Home
+                            scene = SCENE_HOME;
+                        }
+                        expanded = false;
+                        return true;
+                    }
+                }
+                expanded = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void render(SDL_Renderer* renderer) {
+        if (expanded) {
+            for (const auto& item : items) {
+                SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
+                draw_filled_circle(renderer, item.x, item.y, item.r);
+                SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                draw_circle_outline(renderer, item.x, item.y, item.r);
+                
+                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                if (item.id == 0) { // Share (Share Icon)
+                    int ix = item.x, iy = item.y;
+                    draw_filled_circle(renderer, ix - 5, iy, 3);
+                    draw_filled_circle(renderer, ix + 5, iy - 5, 3);
+                    draw_filled_circle(renderer, ix + 5, iy + 5, 3);
+                    SDL_RenderDrawLine(renderer, ix - 5, iy, ix + 5, iy - 5);
+                    SDL_RenderDrawLine(renderer, ix - 5, iy, ix + 5, iy + 5);
+                } else if (item.id == 1) { // Snapshot (Camera)
+                    SDL_Rect box = {item.x - 7, item.y - 5, 14, 10};
+                    SDL_RenderDrawRect(renderer, &box);
+                    draw_circle_outline(renderer, item.x, item.y, 3);
+                    SDL_RenderDrawPoint(renderer, item.x + 5, item.y - 7);
+                } else if (item.id == 2) { // Reset (R)
+                    int ix = item.x, iy = item.y;
+                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix - 4, iy + 6);
+                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix + 2, iy - 6);
+                    SDL_RenderDrawLine(renderer, ix + 2, iy - 6, ix + 2, iy);
+                    SDL_RenderDrawLine(renderer, ix + 2, iy, ix - 4, iy);
+                    SDL_RenderDrawLine(renderer, ix - 4, iy, ix + 4, iy + 6);
+                } else if (item.id == 3) { // Home (House)
+                    int ix = item.x, iy = item.y;
+                    SDL_RenderDrawLine(renderer, ix - 8, iy + 2, ix, iy - 8);
+                    SDL_RenderDrawLine(renderer, ix, iy - 8, ix + 8, iy + 2);
+                    SDL_Rect box = {ix - 6, iy + 2, 12, 8};
+                    SDL_RenderDrawRect(renderer, &box);
+                }
+            }
+        }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
+        draw_filled_circle(renderer, x, y, r);
+        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+        draw_circle_outline(renderer, x, y, r);
+        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 200);
+        draw_filled_circle(renderer, x, y, r - 10);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
+};
+
 // Helper to open file dialog (Windows only for now, simple wrapper)
 #ifdef _WIN32
 #include <windows.h>
@@ -583,6 +708,12 @@ int main(int argc, char* argv[]) {
     VirtualJoystick joystick;
     joystick.init(100, (SCREEN_HEIGHT * SCALE) - 100, 60);
 
+    int center_x = (SCREEN_WIDTH * SCALE) / 2;
+    int bottom_y = (SCREEN_HEIGHT * SCALE) - 50;
+
+    QuickBall quickBall;
+    quickBall.init(center_x, bottom_y);
+
     std::vector<VirtualButton> buttons;
     int btn_radius = 35;
     int base_x = (SCREEN_WIDTH * SCALE) - 120;
@@ -595,10 +726,8 @@ int main(int argc, char* argv[]) {
     btn.init(base_x, base_y - offset, btn_radius, BTN_TRIANGLE, Input::BUTTON_A); buttons.push_back(btn);
     btn.init(base_x + offset, base_y, btn_radius, BTN_CIRCLE, Input::BUTTON_A); buttons.push_back(btn);
 
-    int center_x = (SCREEN_WIDTH * SCALE) / 2;
-    int bottom_y = (SCREEN_HEIGHT * SCALE) - 50;
-    VirtualButton btnSelect; btnSelect.init_rect(center_x - 40, bottom_y, 50, 25, BTN_RECT, Input::BUTTON_SELECT); buttons.push_back(btnSelect);
-    VirtualButton btnStart; btnStart.init(center_x + 40, bottom_y, 20, BTN_SMALL_TRIANGLE, Input::BUTTON_START); buttons.push_back(btnStart);
+    VirtualButton btnSelect; btnSelect.init_rect(center_x - 80, bottom_y, 50, 25, BTN_RECT, Input::BUTTON_SELECT); buttons.push_back(btnSelect);
+    VirtualButton btnStart; btnStart.init(center_x + 80, bottom_y, 20, BTN_SMALL_TRIANGLE, Input::BUTTON_START); buttons.push_back(btnStart);
 
     std::vector<SDL_GameController*> connected_controllers;
 
@@ -647,9 +776,14 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (current_scene == SCENE_GAME && connected_controllers.empty()) {
-                joystick.handle_event(e);
-                for (auto& b : buttons) b.handle_event(e);
+            if (current_scene == SCENE_GAME) {
+                // Check QuickBall first
+                if (quickBall.handle_event(e, current_scene, emu)) {
+                    // Event consumed by QuickBall, do nothing else
+                } else if (connected_controllers.empty()) {
+                    joystick.handle_event(e);
+                    for (auto& b : buttons) b.handle_event(e);
+                }
             }
 
             // Home Screen Interactions
@@ -1050,6 +1184,7 @@ int main(int argc, char* argv[]) {
                 joystick.render(renderer);
                 for (auto& b : buttons) b.render(renderer);
             }
+            quickBall.render(renderer);
             
             if (audio_device != 0) {
                 const std::vector<float>& samples = emu.get_audio_samples();
