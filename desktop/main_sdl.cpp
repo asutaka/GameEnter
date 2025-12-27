@@ -251,6 +251,8 @@ void draw_nes_cartridge(SDL_Renderer* renderer, int x, int y, int scale) {
     SDL_RenderFillRect(renderer, &conn);
 }
 
+
+
 // Virtual Joystick Class
 struct VirtualJoystick {
     int base_x, base_y;
