@@ -126,8 +126,15 @@ int main(int argc, char* argv[]) {
         emu.run_frame();
     }
     
-    // Don't init palette - let game do it
-    // This way game's colors will be correct
+    // Initialize palette to ensure we have colors (Fixes gray screen)
+    std::cout << "Initializing palette..." << std::endl;
+    emu.memory_.read(0x2002);
+    emu.memory_.write(0x2006, 0x3F);
+    emu.memory_.write(0x2006, 0x00);
+    emu.memory_.write(0x2007, 0x0F); // BG = black
+    emu.memory_.write(0x2007, 0x30); // Color 1 = white
+    emu.memory_.write(0x2007, 0x16); // Color 2 = red
+    emu.memory_.write(0x2007, 0x27); // Color 3 = orange
     
     std::cout << "Emulator ready!" << std::endl;
 

@@ -80,6 +80,10 @@ void Emulator::run_frame() {
         // PPU step (3x faster than CPU)
         for (int i = 0; i < cpu_cycles * 3; i++) {
             ppu_.step();
+            if (ppu_.nmi_occurred()) {
+                ppu_.clear_nmi();
+                cpu_.nmi();
+            }
         }
         
         // APU step & Audio Sampling
