@@ -139,16 +139,10 @@ bool PPU::step() {
         }
         
         if (rendering) {
-            // Sprite evaluation (cycle 65-256)
-            if (cycle_ == 65) {
+            // Sprite evaluation (moved to cycle 256 to avoid conflict with rendering)
+            if (cycle_ == 256) {
                 secondary_oam_.fill(0xFF);
-                sprite_count_ = 0;
-            }
-            
-            if (cycle_ >= 65 && cycle_ <= 256) {
-                if ((cycle_ - 65) % 32 == 0) {
-                    evaluate_sprites();
-                }
+                evaluate_sprites();
             }
             
             // Load sprites for next scanline
