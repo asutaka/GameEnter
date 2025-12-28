@@ -821,6 +821,9 @@ int main(int argc, char* argv[]) {
         std::cerr << "Failed to init discovery" << std::endl;
     }
 
+    // Load Config
+    config.load();
+
     Emulator emu;
     Scene current_scene = SCENE_HOME;
     
@@ -1276,6 +1279,11 @@ int main(int argc, char* argv[]) {
                         config.save();
                         current_scene = SCENE_HOME; // Return to Home
                     }
+
+                    // Back Button (Top Left)
+                    if (mx >= 20 && mx <= 80 && my >= 20 && my <= 50) {
+                        current_scene = SCENE_HOME; // Return without saving (or maybe prompt?)
+                    }
                     
                     // Avatar Button
                     if (mx > 450 && mx < 550 && my > 100 && my < 200) {
@@ -1538,7 +1546,13 @@ int main(int argc, char* argv[]) {
             SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
             SDL_RenderClear(renderer);
             
-            font_title.draw_text(renderer, "Settings", 50, 30, {255, 255, 255, 255});
+            // Back Button
+            SDL_Rect back_btn = {20, 20, 60, 30};
+            SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+            SDL_RenderFillRect(renderer, &back_btn);
+            font_small.draw_text(renderer, "Back", 30, 25, {255, 255, 255, 255});
+
+            font_title.draw_text(renderer, "Settings", 100, 30, {255, 255, 255, 255});
             
             int start_y = 100;
             
