@@ -952,8 +952,15 @@ struct QuickBall {
     std::vector<Item> items;
 
     void init(int start_x, int start_y) {
+        set_pos(start_x, start_y);
+        set_layout_normal();
+    }
+
+    void set_pos(int start_x, int start_y) {
         x = start_x; y = start_y; r = 25;
-        expanded = false;
+    }
+
+    void set_layout_normal() {
         items.clear();
         // Expand Upwards (Fan out)
         // 1. Share (Left)
@@ -968,6 +975,23 @@ struct QuickBall {
         items.push_back({x, y - 70, 20, 4});
     }
 
+    void set_layout_replay() {
+        items.clear();
+        // Expand Upwards (Vertical Stack)
+        // 1. Snapshot (id 1) - Bottom
+        items.push_back({x, y - 60, 20, 1});
+        // 2. Home (id 3) - Above Snapshot
+        items.push_back({x, y - 110, 20, 3});
+        
+        // Others (Hidden in Replay, but available in Game)
+        // 3. Reset (id 2)
+        items.push_back({x, y - 160, 20, 2});
+        // 4. Timer (id 4)
+        items.push_back({x, y - 210, 20, 4});
+        // 5. Share (id 0)
+        items.push_back({x, y - 260, 20, 0});
+    }
+
     bool handle_event(const SDL_Event& e, Scene& scene, Emulator& emu) {
         if (e.type == SDL_MOUSEBUTTONDOWN) {
             int mx = e.button.x;
@@ -979,9 +1003,9 @@ struct QuickBall {
             }
             if (expanded) {
                 for (const auto& item : items) {
-                    // Skip Reset and Timer during replay
+                    // Skip Reset, Timer, and Share during replay
                     bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
-                    if (is_replaying && (item.id == 2 || item.id == 4)) continue;
+                    if (is_replaying && (item.id == 2 || item.id == 4 || item.id == 0)) continue;
 
                     int idx = mx - item.x; int idy = my - item.y;
                     if (idx*idx + idy*idy <= item.r*item.r) {
@@ -1048,9 +1072,9 @@ struct QuickBall {
     void render(SDL_Renderer* renderer) {
         if (expanded) {
             for (const auto& item : items) {
-                // Skip Reset and Timer during replay
+                // Skip Reset, Timer, and Share during replay
                 bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
-                if (is_replaying && (item.id == 2 || item.id == 4)) continue;
+                if (is_replaying && (item.id == 2 || item.id == 4 || item.id == 0)) continue;
 
                 SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
                 draw_filled_circle(renderer, item.x, item.y, item.r);
@@ -1332,7 +1356,7 @@ int main(int argc, char* argv[]) {
     int bottom_y = (SCREEN_HEIGHT * SCALE) - 50;
 
     QuickBall quickBall;
-    quickBall.init(center_x, bottom_y);
+    quickBall.init(center_x, bottom_y); // Default to Normal Layout (Center)
 
     std::vector<VirtualButton> buttons;
     int btn_radius = 35;
@@ -1420,16 +1444,21 @@ int main(int argc, char* argv[]) {
                     int my = e.button.y;
                     
                     // Coordinates must match Render logic
-                    int bar_y = 20;
-                    int bar_h = 8;
-                    int ctrl_y = bar_y + bar_h + 5;
-                    int btn_size = 20;
-                    int start_x = SCREEN_WIDTH * SCALE - 40; // Play/Pause
-                    int ff_x = start_x - 30; // Fast Forward
-                    int rw_x = ff_x - 30; // Slow Down
+                    int btn_radius = 25; // Diameter 50
+                    int bottom_y = SCREEN_HEIGHT * SCALE - 50;
+                    // QuickBall is at Right-50
+                    // Controls shift left: Play(R-110), Fast(R-170), Slow(R-230)
+                    int start_x = SCREEN_WIDTH * SCALE - 110; // Play/Pause
+                    int ff_x = start_x - 60; // Fast Forward
+                    int rw_x = ff_x - 60; // Slow Down
+
+                    // Helper for circle click
+                    auto is_in_circle = [&](int mx, int my, int cx, int cy, int r) {
+                        return (mx - cx)*(mx - cx) + (my - cy)*(my - cy) <= r*r;
+                    };
 
                     // Play/Pause
-                    if (mx >= start_x && mx <= start_x + btn_size && my >= ctrl_y && my <= ctrl_y + btn_size) {
+                    if (is_in_circle(mx, my, start_x, bottom_y, btn_radius)) {
                         if (replay_player.is_playing) {
                              replay_player.pause_playback();
                              if (audio_device != 0) SDL_ClearQueuedAudio(audio_device);
@@ -1437,12 +1466,12 @@ int main(int argc, char* argv[]) {
                         else replay_player.resume_playback();
                     }
                     // Fast Forward (>>)
-                    else if (mx >= ff_x && mx <= ff_x + btn_size && my >= ctrl_y && my <= ctrl_y + btn_size) {
+                    else if (is_in_circle(mx, my, ff_x, bottom_y, btn_radius)) {
                         float s = replay_player.playback_speed;
                         if (s < 4.0f) replay_player.set_speed(s * 2.0f);
                     }
                     // Slow Down (<<)
-                    else if (mx >= rw_x && mx <= rw_x + btn_size && my >= ctrl_y && my <= ctrl_y + btn_size) {
+                    else if (is_in_circle(mx, my, rw_x, bottom_y, btn_radius)) {
                         float s = replay_player.playback_speed;
                         if (s > 0.5f) replay_player.set_speed(s / 2.0f);
                     }
@@ -2481,6 +2510,23 @@ int main(int argc, char* argv[]) {
             SDL_RenderCopy(renderer, texture, NULL, NULL);
             
             bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
+            
+            // Update QuickBall Layout based on mode
+            static bool was_replaying = false;
+            if (is_replaying != was_replaying) {
+                if (is_replaying) {
+                    // Switch to Replay Layout (Far Right, Vertical)
+                    // QuickBall takes the rightmost spot (R-50)
+                    quickBall.set_pos((SCREEN_WIDTH * SCALE) - 50, bottom_y);
+                    quickBall.set_layout_replay();
+                } else {
+                    // Switch to Normal Layout (Center, Fan out)
+                    quickBall.set_pos(center_x, bottom_y);
+                    quickBall.set_layout_normal();
+                }
+                was_replaying = is_replaying;
+            }
+
             if (connected_controllers.empty() && !is_replaying) {
                 joystick.render(renderer);
                 for (auto& b : buttons) b.render(renderer);
@@ -2489,31 +2535,78 @@ int main(int argc, char* argv[]) {
             
             // --- REPLAY PLAYBACK UI ---
             if (replay_player.is_playing || replay_player.get_current_frame() > 0) {
-                // Progress bar at top
-                int bar_x = 20;
-                int bar_y = 20;
-                int bar_w = SCREEN_WIDTH * SCALE - 40;
-                int bar_h = 8;
+                // Coordinates
+                int btn_radius = 25;
+                int bottom_y = SCREEN_HEIGHT * SCALE - 50;
+                // QuickBall is at Right-50
+                // Controls shift left: Play(R-110), Fast(R-170), Slow(R-230)
+                int start_x = SCREEN_WIDTH * SCALE - 110; // Play/Pause
+                int ff_x = start_x - 60; // Fast Forward
+                int rw_x = ff_x - 60; // Slow Down
+
+                // (Progress bar moved to bottom)
                 
-                // Background
-                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
-                SDL_Rect bar_bg = {bar_x - 2, bar_y - 2, bar_w + 4, bar_h + 4};
-                SDL_RenderFillRect(renderer, &bar_bg);
+                // (Time display moved to bottom)
                 
-                // Progress
-                float progress = replay_player.get_progress();
-                int progress_w = (int)(bar_w * progress);
-                SDL_SetRenderDrawColor(renderer, 50, 150, 250, 200);
-                SDL_Rect bar_progress = {bar_x, bar_y, progress_w, bar_h};
-                SDL_RenderFillRect(renderer, &bar_progress);
-                
-                // Border
+                // Replay name
+                std::string status = replay_player.is_playing ? "Playing: " : "Paused: ";
+                status += replay_player.replay_name;
+                // Replay name position might need adjustment or removal if it overlaps. 
+                // Let's keep it but maybe move it up? Or just leave it. 
+                // Assuming bar_x/bar_y/bar_h are gone, we need new coords for text if we keep it.
+                // Let's just comment it out or put it somewhere safe, e.g., top left.
+                font_small.draw_text(renderer, status, 20, 20, {255, 255, 255, 255});
+
+                // --- Playback Controls (Bottom Right) ---
+                // (Coordinates already defined above)
+
+                // 1. Play/Pause Button
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
-                SDL_RenderDrawRect(renderer, &bar_bg);
-                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                draw_filled_circle(renderer, start_x, bottom_y, btn_radius);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                draw_circle_outline(renderer, start_x, bottom_y, btn_radius);
                 
-                // Time display (MM:SS / MM:SS)
+                // Icon
+                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                if (replay_player.is_playing) {
+                    // Pause Icon (||)
+                    SDL_Rect p1 = {start_x - 5, bottom_y - 8, 4, 16};
+                    SDL_Rect p2 = {start_x + 1, bottom_y - 8, 4, 16};
+                    SDL_RenderFillRect(renderer, &p1);
+                    SDL_RenderFillRect(renderer, &p2);
+                } else {
+                    // Play Icon (Triangle)
+                    int tx1 = start_x - 3, ty1 = bottom_y - 8;
+                    int tx2 = start_x + 7, ty2 = bottom_y;
+                    int tx3 = start_x - 3, ty3 = bottom_y + 8;
+                    draw_filled_triangle(renderer, tx1, ty1, tx2, ty2, tx3, ty3);
+                }
+
+                // 2. Fast Forward (>>)
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
+                draw_filled_circle(renderer, ff_x, bottom_y, btn_radius);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                draw_circle_outline(renderer, ff_x, bottom_y, btn_radius);
+                
+                // Icon (>>)
+                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                draw_filled_triangle(renderer, ff_x - 6, bottom_y - 6, ff_x + 2, bottom_y, ff_x - 6, bottom_y + 6);
+                draw_filled_triangle(renderer, ff_x + 2, bottom_y - 6, ff_x + 10, bottom_y, ff_x + 2, bottom_y + 6);
+
+                // 3. Slow Down (<<)
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
+                draw_filled_circle(renderer, rw_x, bottom_y, btn_radius);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                draw_circle_outline(renderer, rw_x, bottom_y, btn_radius);
+
+                // Icon (<<)
+                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                draw_filled_triangle(renderer, rw_x + 6, bottom_y - 6, rw_x - 2, bottom_y, rw_x + 6, bottom_y + 6);
+                draw_filled_triangle(renderer, rw_x - 2, bottom_y - 6, rw_x - 10, bottom_y, rw_x - 2, bottom_y + 6);
+
+                // (Speed Display moved to above progress bar)
+
+                // Time Display (Bottom Left)
                 int cur_seconds = (int)(replay_player.get_current_frame() / 60.0f);
                 int tot_seconds = (int)(replay_player.get_total_frames() / 60.0f);
                 
@@ -2523,71 +2616,41 @@ int main(int argc, char* argv[]) {
                         << std::setw(2) << (tot_seconds / 60) << ":" 
                         << std::setw(2) << (tot_seconds % 60);
                 
-                font_small.draw_text(renderer, time_ss.str(), bar_x, bar_y + bar_h + 5, {255, 255, 255, 255});
-                
-                // Replay name
-                std::string status = replay_player.is_playing ? "Playing: " : "Paused: ";
-                status += replay_player.replay_name;
-                font_small.draw_text(renderer, status, bar_x + 150, bar_y + bar_h + 5, {255, 255, 255, 255});
+                // Progress Bar (Extended to left, lowered)
+                int bar_start_x = 30; // Start from left
+                int bar_end_x = rw_x - 30; // Before Slow Down Button
+                int bar_w = bar_end_x - bar_start_x;
+                int bar_y = bottom_y + 10; // Lowered
+                int bar_h = 8;
 
-                // --- Playback Controls (Top Right) ---
-                int ctrl_y = bar_y + bar_h + 5;
-                int btn_size = 20;
-                int start_x = SCREEN_WIDTH * SCALE - 40; // Rightmost button (Play/Pause)
+                // Time Display (Above Progress Bar - Left)
+                font_small.draw_text(renderer, time_ss.str(), bar_start_x, bar_y - 15, {255, 255, 255, 255});
 
-                // 1. Play/Pause Button
-                SDL_Rect btn_play = {start_x, ctrl_y, btn_size, btn_size};
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50); // Transparent BG
-                SDL_RenderFillRect(renderer, &btn_play);
-                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Border
-                SDL_RenderDrawRect(renderer, &btn_play);
-                
-                // Icon
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                if (replay_player.is_playing) {
-                    // Pause Icon (||)
-                    SDL_Rect p1 = {start_x + 6, ctrl_y + 5, 3, 10};
-                    SDL_Rect p2 = {start_x + 11, ctrl_y + 5, 3, 10};
-                    SDL_RenderFillRect(renderer, &p1);
-                    SDL_RenderFillRect(renderer, &p2);
-                } else {
-                    // Play Icon (Triangle)
-                    int tx1 = start_x + 7, ty1 = ctrl_y + 5;
-                    int tx2 = start_x + 15, ty2 = ctrl_y + 10;
-                    int tx3 = start_x + 7, ty3 = ctrl_y + 15;
-                    draw_filled_triangle(renderer, tx1, ty1, tx2, ty2, tx3, ty3);
-                }
-
-                // 2. Fast Forward (>>)
-                int ff_x = start_x - 30;
-                SDL_Rect btn_ff = {ff_x, ctrl_y, btn_size, btn_size};
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
-                SDL_RenderFillRect(renderer, &btn_ff);
-                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-                SDL_RenderDrawRect(renderer, &btn_ff);
-                
-                // Icon (>>)
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                draw_filled_triangle(renderer, ff_x + 4, ctrl_y + 5, ff_x + 10, ctrl_y + 10, ff_x + 4, ctrl_y + 15);
-                draw_filled_triangle(renderer, ff_x + 10, ctrl_y + 5, ff_x + 16, ctrl_y + 10, ff_x + 10, ctrl_y + 15);
-
-                // 3. Slow Down (<<)
-                int rw_x = ff_x - 30;
-                SDL_Rect btn_rw = {rw_x, ctrl_y, btn_size, btn_size};
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
-                SDL_RenderFillRect(renderer, &btn_rw);
-                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-                SDL_RenderDrawRect(renderer, &btn_rw);
-
-                // Icon (<<)
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                draw_filled_triangle(renderer, rw_x + 16, ctrl_y + 5, rw_x + 10, ctrl_y + 10, rw_x + 16, ctrl_y + 15);
-                draw_filled_triangle(renderer, rw_x + 10, ctrl_y + 5, rw_x + 4, ctrl_y + 10, rw_x + 10, ctrl_y + 15);
-
-                // Speed Display
+                // Speed Display (Above Progress Bar - Right)
                 std::stringstream speed_ss;
                 speed_ss << replay_player.playback_speed << "x";
-                font_small.draw_text(renderer, speed_ss.str(), rw_x - 30, ctrl_y + 5, {200, 200, 200, 255});
+                // Align right: bar_end_x - approx width (30px)
+                font_small.draw_text(renderer, speed_ss.str(), bar_end_x - 30, bar_y - 15, {255, 255, 255, 255});
+                
+                if (bar_w > 0) {
+                    // Background
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+                    SDL_Rect bar_bg = {bar_start_x - 2, bar_y - 2, bar_w + 4, bar_h + 4};
+                    SDL_RenderFillRect(renderer, &bar_bg);
+                    
+                    // Progress
+                    float progress = replay_player.get_progress();
+                    int progress_w = (int)(bar_w * progress);
+                    SDL_SetRenderDrawColor(renderer, 50, 150, 250, 200);
+                    SDL_Rect bar_progress = {bar_start_x, bar_y, progress_w, bar_h};
+                    SDL_RenderFillRect(renderer, &bar_progress);
+                    
+                    // Border
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
+                    SDL_RenderDrawRect(renderer, &bar_bg);
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                }
 
                 // Handle Clicks for Controls
                 // We need to check mouse state here or in handle_event. 
