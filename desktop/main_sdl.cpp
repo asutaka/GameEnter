@@ -691,7 +691,7 @@ struct QuickBall {
 #ifdef _WIN32
 #include <windows.h>
 #include <commdlg.h>
-std::string open_file_dialog() {
+std::string open_file_dialog(const char* filter = "NES ROMs\0*.nes\0All Files\0*.*\0") {
     OPENFILENAMEA ofn;
     char szFile[260] = {0};
     ZeroMemory(&ofn, sizeof(ofn));
@@ -699,7 +699,7 @@ std::string open_file_dialog() {
     ofn.hwndOwner = NULL;
     ofn.lpstrFile = szFile;
     ofn.nMaxFile = sizeof(szFile);
-    ofn.lpstrFilter = "NES ROMs\0*.nes\0All Files\0*.*\0";
+    ofn.lpstrFilter = filter;
     ofn.nFilterIndex = 1;
     ofn.lpstrFileTitle = NULL;
     ofn.nMaxFileTitle = 0;
@@ -712,7 +712,7 @@ std::string open_file_dialog() {
     return "";
 }
 #else
-std::string open_file_dialog() { return ""; } // Not implemented for other OS
+std::string open_file_dialog(const char* filter = "") { return ""; } // Not implemented for other OS
 #endif
 
 // Helper: Import cover image to local storage
@@ -749,6 +749,37 @@ std::string import_cover_image(const std::string& source_path, const std::string
         return dest_path.string();
     } catch (const std::exception& e) {
         std::cerr << "❌ Error importing cover: " << e.what() << std::endl;
+        return source_path; // Fallback to original path
+    }
+}
+
+// Helper: Import avatar image to local storage
+std::string import_avatar_image(const std::string& source_path, const std::string& device_id) {
+    try {
+        // 1. Get Exe Directory
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+        std::string exe_dir = std::string(buffer).substr(0, pos);
+        
+        // 2. Create 'images/avatars' directory if not exists
+        fs::path avatars_dir = fs::path(exe_dir) / "images" / "avatars";
+        if (!fs::exists(avatars_dir)) {
+            fs::create_directories(avatars_dir);
+        }
+
+        // 3. Generate Destination Path
+        // Use DeviceID as filename to avoid conflicts and easy lookup
+        std::string ext = fs::path(source_path).extension().string();
+        fs::path dest_path = avatars_dir / (device_id + ext);
+
+        // 4. Copy File
+        fs::copy_file(source_path, dest_path, fs::copy_options::overwrite_existing);
+        
+        std::cout << "📥 Imported avatar to: " << dest_path.string() << std::endl;
+        return dest_path.string();
+    } catch (const std::exception& e) {
+        std::cerr << "❌ Error importing avatar: " << e.what() << std::endl;
         return source_path; // Fallback to original path
     }
 }
@@ -1248,8 +1279,13 @@ int main(int argc, char* argv[]) {
                     
                     // Avatar Button
                     if (mx > 450 && mx < 550 && my > 100 && my < 200) {
-                        std::string path = open_file_dialog(); // Reuse this for image selection for now
-                        if (!path.empty()) settings_avatar_path = path;
+                        std::string path = open_file_dialog("Images\0*.png;*.jpg;*.jpeg;*.bmp\0All Files\0*.*\0");
+                        if (!path.empty()) {
+                             std::string imported_path = import_avatar_image(path, config.get_device_id());
+                             if (!imported_path.empty()) {
+                                 settings_avatar_path = imported_path;
+                             }
+                        }
                     }
                 }
             }
