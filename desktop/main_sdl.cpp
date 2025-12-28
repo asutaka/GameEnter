@@ -1,6 +1,12 @@
 #define SDL_MAIN_HANDLED
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <winsock2.h>
+#include <windows.h>
+#include <commdlg.h>
+#endif
 #include <SDL2/SDL.h>
-#include "../core/emulator.h"
 #include <iostream>
 #include <string>
 #include <chrono>
@@ -11,13 +17,8 @@
 #include <algorithm>
 #include <fstream>
 #include <sstream>
-#include <filesystem> // Added for directory creation
-
-#ifdef _WIN32
-#define NOMINMAX
-#include <windows.h>
-#include <commdlg.h>
-#endif
+#include <filesystem>
+#include "../core/emulator.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -26,9 +27,27 @@
 #include "stb_image.h"
 
 #include "slot_manager.h"
+#include "../core/network/network_manager.h"
+#include "../core/network/network_discovery.h"
+#include "../core/config/config_manager.h"
 
 using namespace nes;
 namespace fs = std::filesystem; // Alias for convenience
+
+// Global Network Manager
+NetworkManager net_manager;
+// Global Network Discovery
+NetworkDiscovery discovery;
+// Global Config Manager
+ConfigManager config;
+
+// Settings UI State
+std::string settings_nickname;
+std::string settings_fullname;
+std::string settings_birthday;
+std::string settings_avatar_path;
+bool settings_loaded = false;
+int active_input_field = -1; // 0: Nickname, 1: Name, 2: Birthday
 
 // Screen dimensions
 const int SCREEN_WIDTH = 256;
@@ -530,7 +549,7 @@ void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joyst
     emu.set_controller(1, p2_buttons);
 }
 
-enum Scene { SCENE_HOME, SCENE_GAME };
+enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_MULTIPLAYER_LOBBY };
 
 // QuickBall Class
 struct QuickBall {
@@ -556,6 +575,8 @@ struct QuickBall {
         items.push_back({x + 40, y - 50, 20, 2});
         // 4. Home (Right)
         items.push_back({x + 60, y - 10, 20, 3});
+        // 5. Settings (Top)
+        items.push_back({x, y - 70, 20, 4});
     }
 
     bool handle_event(const SDL_Event& e, Scene& scene, Emulator& emu) {
@@ -594,6 +615,14 @@ struct QuickBall {
                             emu.reset();
                         } else if (item.id == 3) { // Home
                             scene = SCENE_HOME;
+                        } else if (item.id == 4) { // Settings
+                            scene = SCENE_SETTINGS;
+                            // Load current config into UI buffers
+                            settings_nickname = config.get_nickname();
+                            settings_fullname = config.get_full_name();
+                            settings_birthday = config.get_birthday();
+                            settings_avatar_path = config.get_avatar_path();
+                            settings_loaded = true;
                         }
                         expanded = false;
                         return true;
@@ -640,6 +669,14 @@ struct QuickBall {
                     SDL_RenderDrawLine(renderer, ix, iy - 8, ix + 8, iy + 2);
                     SDL_Rect box = {ix - 6, iy + 2, 12, 8};
                     SDL_RenderDrawRect(renderer, &box);
+                } else if (item.id == 4) { // Settings (Gear)
+                    draw_circle_outline(renderer, item.x, item.y, 5);
+                    for(int k=0; k<8; k++) {
+                        float angle = k * (3.14159f * 2 / 8);
+                        int tx = item.x + (int)(cos(angle) * 7);
+                        int ty = item.y + (int)(sin(angle) * 7);
+                        SDL_RenderDrawPoint(renderer, tx, ty);
+                    }
                 }
             }
         }
@@ -752,6 +789,11 @@ int main(int argc, char* argv[]) {
     if (!font_body.init(renderer, font_path, 18.0f)) std::cerr << "Failed to init body font" << std::endl;
     if (!font_small.init(renderer, font_path, 14.0f)) std::cerr << "Failed to init small font" << std::endl;
 
+    // Init Discovery
+    if (!discovery.init()) {
+        std::cerr << "Failed to init discovery" << std::endl;
+    }
+
     Emulator emu;
     Scene current_scene = SCENE_HOME;
     
@@ -798,10 +840,16 @@ int main(int argc, char* argv[]) {
     }
     
     // Pre-load if arg provided (into slot 0)
-    if (argc > 1) {
-        slots[0].rom_path = argv[1];
-        slots[0].name = "Game 1";
-        slots[0].occupied = true;
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--id" && i + 1 < argc) {
+            config.set_device_id(argv[++i]);
+            config.set_nickname("Player 2"); // Auto-set nickname for convenience
+        } else if (arg.find(".nes") != std::string::npos) {
+            slots[0].rom_path = arg;
+            slots[0].name = "Game 1";
+            slots[0].occupied = true;
+        }
     }
 
     // Scroll State
@@ -921,6 +969,12 @@ int main(int argc, char* argv[]) {
                 if (e.type == SDL_MOUSEBUTTONDOWN) {
                     int mx = e.button.x;
                     int my = e.button.y;
+
+                    // Multiplayer Button Click
+                    if (mx >= 15 && mx <= 115 && my >= 15 && my <= 45) {
+                        current_scene = SCENE_MULTIPLAYER_LOBBY;
+                        discovery.start_advertising(config.get_device_id(), config.get_nickname(), "Menu", 6502);
+                    }
 
                     if (showing_delete_popup) {
                         // Handle Popup Clicks
@@ -1154,6 +1208,66 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
+
+
+            // Settings Scene Interactions
+            if (current_scene == SCENE_SETTINGS) {
+                if (e.type == SDL_TEXTINPUT) {
+                    if (active_input_field == 0) settings_nickname += e.text.text;
+                    else if (active_input_field == 1) settings_fullname += e.text.text;
+                    else if (active_input_field == 2) settings_birthday += e.text.text;
+                } else if (e.type == SDL_KEYDOWN) {
+                    if (e.key.keysym.sym == SDLK_BACKSPACE) {
+                        std::string* target = nullptr;
+                        if (active_input_field == 0) target = &settings_nickname;
+                        else if (active_input_field == 1) target = &settings_fullname;
+                        else if (active_input_field == 2) target = &settings_birthday;
+                        
+                        if (target && !target->empty()) {
+                            target->pop_back();
+                        }
+                    }
+                } else if (e.type == SDL_MOUSEBUTTONDOWN) {
+                    int mx = e.button.x;
+                    int my = e.button.y;
+                    
+                    // Input Fields Hitbox (Approximate)
+                    int start_y = 100;
+                    if (mx > 50 && mx < 400 && my > start_y && my < start_y + 30) { active_input_field = 0; SDL_StartTextInput(); }
+                    else if (mx > 50 && mx < 400 && my > start_y + 50 && my < start_y + 80) { active_input_field = 1; SDL_StartTextInput(); }
+                    else if (mx > 50 && mx < 400 && my > start_y + 100 && my < start_y + 130) { active_input_field = 2; SDL_StartTextInput(); }
+                    else { active_input_field = -1; SDL_StopTextInput(); }
+
+                    // Save Button
+                    if (mx > 50 && mx < 150 && my > 300 && my < 340) {
+                        config.set_nickname(settings_nickname);
+                        config.set_full_name(settings_fullname);
+                        config.set_birthday(settings_birthday);
+                        config.set_avatar_path(settings_avatar_path);
+                        config.save();
+                        current_scene = SCENE_HOME; // Return to Home
+                    }
+                    
+                    // Avatar Button
+                    if (mx > 450 && mx < 550 && my > 100 && my < 200) {
+                        std::string path = open_file_dialog(); // Reuse this for image selection for now
+                        if (!path.empty()) settings_avatar_path = path;
+                    }
+                }
+            }
+
+            // Multiplayer Lobby Interactions
+            if (current_scene == SCENE_MULTIPLAYER_LOBBY) {
+                if (e.type == SDL_MOUSEBUTTONDOWN) {
+                    int mx = e.button.x;
+                    int my = e.button.y;
+                    // Back Button
+                    if (mx >= 20 && mx <= 80 && my >= 20 && my <= 50) {
+                        discovery.stop_advertising();
+                        current_scene = SCENE_HOME;
+                    }
+                }
+            }
         }
 
         SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255); // White BG
@@ -1288,6 +1402,12 @@ int main(int argc, char* argv[]) {
             std::string status = connected_controllers.empty() ? "No devices connected, play by touch." : "Gamepad connected.";
             font_small.draw_text(renderer, status, 20, 80, {220, 220, 220, 255});
 
+            // Multiplayer Button (Top Left)
+            font_small.draw_text(renderer, "Multiplayer", 20, 20, {255, 255, 255, 255});
+            SDL_Rect mp_btn = {15, 15, 100, 30};
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
+            SDL_RenderDrawRect(renderer, &mp_btn);
+
             // Menu Dots (Top Right)
             int mx = SCREEN_WIDTH * SCALE - 40;
             int my = 50;
@@ -1370,6 +1490,85 @@ int main(int argc, char* argv[]) {
                 font_body.draw_text(renderer, "No", cx + 10 + 40, cy + 20 + 28, {255, 255, 255, 255});
             }
 
+        } else if (current_scene == SCENE_SETTINGS) {
+            // BG
+            SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
+            SDL_RenderClear(renderer);
+            
+            font_title.draw_text(renderer, "Settings", 50, 30, {255, 255, 255, 255});
+            
+            int start_y = 100;
+            
+            // Nickname
+            font_body.draw_text(renderer, "Nickname:", 50, start_y - 25, {200, 200, 200, 255});
+            SDL_Rect box1 = {50, start_y, 300, 30};
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+            SDL_RenderFillRect(renderer, &box1);
+            if (active_input_field == 0) {
+                SDL_SetRenderDrawColor(renderer, 100, 100, 200, 255);
+                SDL_RenderDrawRect(renderer, &box1);
+            }
+            font_body.draw_text(renderer, settings_nickname, 55, start_y + 5, {255, 255, 255, 255});
+
+            // Full Name
+            font_body.draw_text(renderer, "Full Name:", 50, start_y + 50 - 25, {200, 200, 200, 255});
+            SDL_Rect box2 = {50, start_y + 50, 300, 30};
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+            SDL_RenderFillRect(renderer, &box2);
+            if (active_input_field == 1) {
+                SDL_SetRenderDrawColor(renderer, 100, 100, 200, 255);
+                SDL_RenderDrawRect(renderer, &box2);
+            }
+            font_body.draw_text(renderer, settings_fullname, 55, start_y + 50 + 5, {255, 255, 255, 255});
+
+            // Birthday
+            font_body.draw_text(renderer, "Birthday:", 50, start_y + 100 - 25, {200, 200, 200, 255});
+            SDL_Rect box3 = {50, start_y + 100, 300, 30};
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+            SDL_RenderFillRect(renderer, &box3);
+            if (active_input_field == 2) {
+                SDL_SetRenderDrawColor(renderer, 100, 100, 200, 255);
+                SDL_RenderDrawRect(renderer, &box3);
+            }
+            font_body.draw_text(renderer, settings_birthday, 55, start_y + 100 + 5, {255, 255, 255, 255});
+
+            // Avatar
+            font_body.draw_text(renderer, "Avatar:", 450, start_y - 25, {200, 200, 200, 255});
+            SDL_Rect avatar_box = {450, start_y, 100, 100};
+            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+            SDL_RenderFillRect(renderer, &avatar_box);
+            font_small.draw_text(renderer, "Click to change", 455, start_y + 40, {150, 150, 150, 255});
+            
+            // Save Button
+            SDL_Rect save_btn = {50, 300, 100, 40};
+            SDL_SetRenderDrawColor(renderer, 0, 150, 0, 255);
+            SDL_RenderFillRect(renderer, &save_btn);
+            font_body.draw_text(renderer, "Save", 75, 310, {255, 255, 255, 255});
+
+        } else if (current_scene == SCENE_MULTIPLAYER_LOBBY) {
+             SDL_SetRenderDrawColor(renderer, 20, 20, 40, 255);
+             SDL_RenderClear(renderer);
+             font_title.draw_text(renderer, "Lobby", 100, 30, {255, 255, 255, 255});
+             
+             // Back Button
+             SDL_Rect back_btn = {20, 20, 60, 30};
+             SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+             SDL_RenderFillRect(renderer, &back_btn);
+             font_small.draw_text(renderer, "Back", 30, 25, {255, 255, 255, 255});
+
+             // List Peers
+             auto peers = discovery.get_peers();
+             int y = 100;
+             if (peers.empty()) {
+                 font_body.draw_text(renderer, "Scanning for players...", 50, y, {150, 150, 150, 255});
+             } else {
+                 for (const auto& peer : peers) {
+                     std::string info = peer.username + " (" + peer.game_name + ")";
+                     font_body.draw_text(renderer, info, 50, y, {255, 255, 255, 255});
+                     y += 30;
+                 }
+             }
+
         } else {
             // --- GAME SCENE ---
             const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
@@ -1427,6 +1626,7 @@ int main(int argc, char* argv[]) {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     if (audio_device != 0) SDL_CloseAudioDevice(audio_device);
+    discovery.shutdown();
     SDL_Quit();
 
     return 0;

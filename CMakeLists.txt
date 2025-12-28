@@ -39,12 +39,19 @@ add_library(nes_core STATIC
     core/mappers/mapper4.cpp
     core/mappers/mapper7.cpp
     core/input/input.cpp
+    core/network/network_manager.cpp
+    core/network/network_discovery.cpp
+    core/config/config_manager.cpp
     core/emulator.cpp
 )
 
 target_include_directories(nes_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/core
 )
+
+if(WIN32)
+    target_link_libraries(nes_core PUBLIC ws2_32)
+endif()
 
 # Desktop Test Application (Console - No SDL2 needed)
 add_executable(nes_test

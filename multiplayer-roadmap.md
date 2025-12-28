@@ -19,20 +19,24 @@ Mục tiêu: Cho phép 2 người chơi cùng lúc trên 1 máy tính.
 - [x] **1.4 Testing**
   - [x] Test với game 2 người (Contra, Tank 1990).
 
-## Phase 2: Network Multiplayer (Tương Lai)
-Mục tiêu: Chơi qua mạng LAN/Internet.
+## Phase 2: Network Multiplayer (Đang thực hiện)
+Mục tiêu: Chơi qua mạng LAN/Internet sử dụng mô hình P2P Lockstep.
 
-- [ ] **2.1 Architecture Design**
-  - [ ] Chọn mô hình: P2P (Peer-to-Peer) với Lockstep hoặc Server-Client.
-  - [ ] Nghiên cứu thư viện mạng (ENet hoặc SDL_Net).
+- [ ] **2.1 Network Core (Winsock)**
+  - [ ] Tạo class `NetworkManager` quản lý kết nối TCP/UDP.
+  - [ ] Implement chế độ **Server (Host)**: Lắng nghe kết nối.
+  - [ ] Implement chế độ **Client (Guest)**: Kết nối đến IP.
+  - [ ] Xử lý gửi/nhận packet bất đồng bộ (Non-blocking I/O).
 
-- [ ] **2.2 Serialization**
-  - [ ] Đồng bộ Input giữa 2 máy.
-  - [ ] Save/Load State để đồng bộ trạng thái ban đầu (nếu cần).
+- [ ] **2.2 Lockstep Protocol**
+  - [ ] Định nghĩa cấu trúc gói tin `InputPacket` (Frame ID + Button State).
+  - [ ] Implement logic "Wait for Input": Game loop sẽ tạm dừng nếu chưa nhận được input từ đối thủ.
+  - [ ] Xử lý đồng bộ Start Game (Cả 2 cùng load ROM và bắt đầu).
 
-- [ ] **2.3 Network Loop**
-  - [ ] Gửi input packet mỗi frame.
-  - [ ] Xử lý lag/delay (Input buffering).
+- [ ] **2.3 UI Integration**
+  - [ ] Thêm menu "Multiplayer" ở màn hình Home.
+  - [ ] Popup nhập IP Address để kết nối.
+  - [ ] Hiển thị trạng thái kết nối (Connected/Disconnected).
 
 ## Phase 3: UI & Lobby
 - [ ] Màn hình chọn chế độ (1 Player / 2 Players Local / Online).
