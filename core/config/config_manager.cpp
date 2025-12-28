@@ -8,7 +8,16 @@
 
 namespace nes {
 
+#include <windows.h> // For GetModuleFileNameA
+
 ConfigManager::ConfigManager() {
+    // Determine absolute path for config.ini based on executable location
+    char buffer[MAX_PATH];
+    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+    std::string exe_dir = std::string(buffer).substr(0, pos);
+    config_file_ = exe_dir + "\\config.ini";
+
     load();
 }
 
@@ -43,6 +52,9 @@ void ConfigManager::save() {
         file << "device_id=" << device_id_ << "\n";
         file << "nickname=" << nickname_ << "\n";
         file << "avatar_path=" << avatar_path_ << "\n";
+        std::cout << "[Config] Saved to " << config_file_ << ": " << nickname_ << ", " << avatar_path_ << std::endl;
+    } else {
+        std::cerr << "[Config] Failed to open file for writing: " << config_file_ << std::endl;
     }
 }
 
