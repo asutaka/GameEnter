@@ -41,6 +41,13 @@ NetworkDiscovery discovery;
 // Global Config Manager
 ConfigManager config;
 
+// Timer State
+bool timer_running = false;
+std::chrono::time_point<std::chrono::high_resolution_clock> timer_start_time;
+bool timer_show_final = false;
+std::chrono::time_point<std::chrono::high_resolution_clock> timer_final_display_start;
+double timer_final_value = 0.0;
+
 // Settings UI State
 std::string settings_nickname;
 std::string settings_avatar_path;
@@ -573,7 +580,7 @@ struct QuickBall {
         items.push_back({x + 40, y - 50, 20, 2});
         // 4. Home (Right)
         items.push_back({x + 60, y - 10, 20, 3});
-        // 5. Settings (Top)
+        // 5. Timer (Top) - Replaces Settings
         items.push_back({x, y - 70, 20, 4});
     }
 
@@ -613,12 +620,21 @@ struct QuickBall {
                             emu.reset();
                         } else if (item.id == 3) { // Home
                             scene = SCENE_HOME;
-                        } else if (item.id == 4) { // Settings
-                            scene = SCENE_SETTINGS;
-                            // Load current config into UI buffers
-                            settings_nickname = config.get_nickname();
-                            settings_avatar_path = config.get_avatar_path();
-                            settings_loaded = true;
+                        } else if (item.id == 4) { // Timer
+                            if (!timer_running) {
+                                // Start Timer
+                                timer_running = true;
+                                timer_start_time = std::chrono::high_resolution_clock::now();
+                                timer_show_final = false;
+                            } else {
+                                // Stop Timer
+                                timer_running = false;
+                                auto now = std::chrono::high_resolution_clock::now();
+                                std::chrono::duration<double> elapsed = now - timer_start_time;
+                                timer_final_value = elapsed.count();
+                                timer_show_final = true;
+                                timer_final_display_start = now;
+                            }
                         }
                         expanded = false;
                         return true;
@@ -665,14 +681,11 @@ struct QuickBall {
                     SDL_RenderDrawLine(renderer, ix, iy - 8, ix + 8, iy + 2);
                     SDL_Rect box = {ix - 6, iy + 2, 12, 8};
                     SDL_RenderDrawRect(renderer, &box);
-                } else if (item.id == 4) { // Settings (Gear)
-                    draw_circle_outline(renderer, item.x, item.y, 5);
-                    for(int k=0; k<8; k++) {
-                        float angle = k * (3.14159f * 2 / 8);
-                        int tx = item.x + (int)(cos(angle) * 7);
-                        int ty = item.y + (int)(sin(angle) * 7);
-                        SDL_RenderDrawPoint(renderer, tx, ty);
-                    }
+                } else if (item.id == 4) { // Timer (Clock)
+                    int ix = item.x, iy = item.y;
+                    draw_circle_outline(renderer, ix, iy, 12); // Clock face
+                    SDL_RenderDrawLine(renderer, ix, iy, ix, iy - 8); // Minute hand
+                    SDL_RenderDrawLine(renderer, ix, iy, ix + 6, iy); // Hour hand
                 }
             }
         }
@@ -1638,6 +1651,55 @@ int main(int argc, char* argv[]) {
             if (audio_device != 0) {
                 const std::vector<float>& samples = emu.get_audio_samples();
                 if (!samples.empty()) SDL_QueueAudio(audio_device, samples.data(), samples.size() * sizeof(float));
+            }
+
+            // --- TIMER OVERLAY ---
+            if (timer_running || timer_show_final) {
+                auto now = std::chrono::high_resolution_clock::now();
+                double current_val = 0.0;
+                
+                if (timer_running) {
+                    std::chrono::duration<double> elapsed = now - timer_start_time;
+                    current_val = elapsed.count();
+                } else {
+                    current_val = timer_final_value;
+                }
+
+                // Format: MM:SS.mmm
+                int minutes = (int)(current_val / 60);
+                int seconds = (int)current_val % 60;
+                int millis = (int)((current_val - (int)current_val) * 1000);
+                
+                std::stringstream ss;
+                ss << std::setfill('0') << std::setw(2) << minutes << ":"
+                   << std::setw(2) << seconds << "."
+                   << std::setw(3) << millis;
+                std::string time_str = ss.str();
+
+                if (timer_running) {
+                    // Top Right, Red
+                    float w = font_title.get_text_width(time_str);
+                    font_title.draw_text(renderer, time_str, SCREEN_WIDTH * SCALE - w - 20, 20, {255, 50, 50, 255});
+                } else if (timer_show_final) {
+                    std::chrono::duration<double> display_elapsed = now - timer_final_display_start;
+                    if (display_elapsed.count() < 3.0) {
+                        // Center, Large
+                        float w = font_title.get_text_width(time_str);
+                        int cx = (SCREEN_WIDTH * SCALE) / 2;
+                        int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                        
+                        // Background box
+                        SDL_Rect bg = {cx - (int)w/2 - 10, cy - 20, (int)w + 20, 40};
+                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
+                        SDL_RenderFillRect(renderer, &bg);
+                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                        font_title.draw_text(renderer, time_str, cx - w/2, cy - 15, {255, 255, 255, 255});
+                    } else {
+                        timer_show_final = false;
+                    }
+                }
             }
         }
         
