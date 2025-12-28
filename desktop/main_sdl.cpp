@@ -149,6 +149,115 @@ public:
 
 Recorder recorder;
 
+// --- Replay Player System ---
+class ReplayPlayer {
+public:
+    bool is_playing = false;
+    std::vector<ReplayFrame> frames;
+    size_t current_frame_index = 0;
+    std::string replay_name;
+    
+    bool load_replay(const std::string& filepath) {
+        try {
+            std::ifstream file(filepath, std::ios::binary);
+            if (!file) {
+                std::cerr << "[ReplayPlayer] Failed to open file: " << filepath << std::endl;
+                return false;
+            }
+            
+            // Read header
+            ReplayHeader header;
+            file.read((char*)&header, sizeof(header));
+            
+            // Validate signature
+            if (header.signature[0] != 'N' || header.signature[1] != 'E' || 
+                header.signature[2] != 'S' || header.signature[3] != 'R') {
+                std::cerr << "[ReplayPlayer] Invalid replay file signature" << std::endl;
+                return false;
+            }
+            
+            // Read frames
+            frames.resize(header.total_frames);
+            file.read((char*)frames.data(), header.total_frames * sizeof(ReplayFrame));
+            file.close();
+            
+            // Extract replay name from filepath
+            size_t last_slash = filepath.find_last_of("/\\");
+            replay_name = (last_slash == std::string::npos) ? filepath : filepath.substr(last_slash + 1);
+            
+            std::cout << "[ReplayPlayer] Loaded replay: " << replay_name << std::endl;
+            std::cout << "               Total frames: " << frames.size() << std::endl;
+            
+            return true;
+        } catch (const std::exception& e) {
+            std::cerr << "[ReplayPlayer] Error loading replay: " << e.what() << std::endl;
+            return false;
+        }
+    }
+    
+    void start_playback() {
+        if (frames.empty()) {
+            std::cerr << "[ReplayPlayer] No replay loaded" << std::endl;
+            return;
+        }
+        
+        is_playing = true;
+        current_frame_index = 0;
+        std::cout << "[ReplayPlayer] Started playback" << std::endl;
+    }
+    
+    void stop_playback() {
+        is_playing = false;
+        current_frame_index = 0;
+        std::cout << "[ReplayPlayer] Stopped playback" << std::endl;
+    }
+    
+    void pause_playback() {
+        is_playing = false;
+        std::cout << "[ReplayPlayer] Paused playback at frame " << current_frame_index << std::endl;
+    }
+    
+    void resume_playback() {
+        if (!frames.empty() && current_frame_index < frames.size()) {
+            is_playing = true;
+            std::cout << "[ReplayPlayer] Resumed playback from frame " << current_frame_index << std::endl;
+        }
+    }
+    
+    // Get current frame inputs and advance to next frame
+    bool get_next_frame(uint8_t& p1_buttons, uint8_t& p2_buttons) {
+        if (!is_playing || current_frame_index >= frames.size()) {
+            if (current_frame_index >= frames.size() && is_playing) {
+                // Replay finished
+                std::cout << "[ReplayPlayer] Replay finished" << std::endl;
+                is_playing = false;
+            }
+            return false;
+        }
+        
+        p1_buttons = frames[current_frame_index].p1_buttons;
+        p2_buttons = frames[current_frame_index].p2_buttons;
+        current_frame_index++;
+        
+        return true;
+    }
+    
+    float get_progress() const {
+        if (frames.empty()) return 0.0f;
+        return (float)current_frame_index / (float)frames.size();
+    }
+    
+    size_t get_current_frame() const {
+        return current_frame_index;
+    }
+    
+    size_t get_total_frames() const {
+        return frames.size();
+    }
+};
+
+ReplayPlayer replay_player;
+
 // --- Replay Library System ---
 struct ReplayFileInfo {
     std::string filename;        // Full filename (e.g., "replay_Contra_20251228_170530.rpl")
@@ -681,8 +790,29 @@ struct VirtualButton {
 
 // Input Handling
 void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joystick, const std::vector<VirtualButton>& buttons, const std::vector<SDL_GameController*>& controllers) {
-    // --- Player 1 ---
+    // Check if we're playing back a replay
     uint8_t p1_buttons = 0;
+    uint8_t p2_buttons = 0;
+    
+    if (replay_player.is_playing) {
+        // Use replay inputs
+        if (!replay_player.get_next_frame(p1_buttons, p2_buttons)) {
+            // Replay finished or not playing
+            p1_buttons = 0;
+            p2_buttons = 0;
+        }
+        
+        // Set controller inputs from replay
+        emu.set_controller(0, p1_buttons);
+        emu.set_controller(1, p2_buttons);
+        
+        // Don't record when playing back
+        return;
+    }
+    
+    // --- Normal input handling (not replay) ---
+    // --- Player 1 ---
+    p1_buttons = 0;
     
     // 1. Keyboard P1
     if (keys[SDL_SCANCODE_Z])      p1_buttons |= (1 << Input::BUTTON_A);
@@ -733,7 +863,7 @@ void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joyst
     emu.set_controller(0, p1_buttons);
 
     // --- Player 2 ---
-    uint8_t p2_buttons = 0;
+    p2_buttons = 0;
 
     // 1. Keyboard P2 (IJKL + O/P)
     if (keys[SDL_SCANCODE_P])      p2_buttons |= (1 << Input::BUTTON_A);
@@ -1569,11 +1699,67 @@ int main(int argc, char* argv[]) {
                                     int dy = my - play_y;
                                     
                                     if (dx*dx + dy*dy <= 20*20) {
-                                        // Play button clicked - TODO: Implement replay playback
+                                        // Play button clicked - Load and play replay
                                         std::cout << "▶️ Play replay: " << replay_files[i].display_name << std::endl;
                                         std::cout << "   File: " << replay_files[i].full_path << std::endl;
                                         std::cout << "   Frames: " << replay_files[i].total_frames << std::endl;
-                                        // TODO: Load and play replay
+                                        
+                                        // Load replay file
+                                        if (replay_player.load_replay(replay_files[i].full_path)) {
+                                            // Try to find matching ROM from slots
+                                            // Extract game name from replay filename
+                                            std::string replay_filename = replay_files[i].filename;
+                                            std::string game_name_from_replay;
+                                            
+                                            if (replay_filename.substr(0, 7) == "replay_") {
+                                                std::string name = replay_filename.substr(7);
+                                                size_t last_underscore = name.rfind('_');
+                                                if (last_underscore != std::string::npos) {
+                                                    size_t second_last = name.rfind('_', last_underscore - 1);
+                                                    if (second_last != std::string::npos) {
+                                                        game_name_from_replay = name.substr(0, second_last);
+                                                        std::replace(game_name_from_replay.begin(), game_name_from_replay.end(), '_', ' ');
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // Find matching ROM in slots
+                                            bool rom_found = false;
+                                            std::cout << "   Looking for ROM matching: '" << game_name_from_replay << "'" << std::endl;
+                                            for (const auto& slot : slots) {
+                                                if (slot.occupied) {
+                                                    std::cout << "   Checking slot: '" << slot.name << "'" << std::endl;
+                                                }
+                                                // Try substring match (game name from replay should contain slot name or vice versa)
+                                                if (slot.occupied && (
+                                                    game_name_from_replay.find(slot.name) != std::string::npos ||
+                                                    slot.name.find(game_name_from_replay) != std::string::npos)) {
+                                                    std::cout << "   ✅ Match found!" << std::endl;
+                                                    // Load ROM
+                                                    if (emu.load_rom(slot.rom_path.c_str())) {
+                                                        emu.reset();
+                                                        for (int k = 0; k < 10; k++) emu.run_frame();
+                                                        emu.memory_.read(0x2002);
+                                                        emu.memory_.write(0x2006, 0x3F); emu.memory_.write(0x2006, 0x00);
+                                                        emu.memory_.write(0x2007, 0x0F); emu.memory_.write(0x2007, 0x30);
+                                                        emu.memory_.write(0x2007, 0x16); emu.memory_.write(0x2007, 0x27);
+                                                        
+                                                        // Start replay playback
+                                                        replay_player.start_playback();
+                                                        current_scene = SCENE_GAME;
+                                                        rom_found = true;
+                                                        
+                                                        std::cout << "✅ Started replay playback for: " << slot.name << std::endl;
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            if (!rom_found) {
+                                                std::cerr << "❌ Could not find matching ROM for replay: " << game_name_from_replay << std::endl;
+                                                std::cerr << "   Please make sure the ROM is loaded in a slot" << std::endl;
+                                            }
+                                        }
                                     }
                                     break;
                                 }
@@ -2170,6 +2356,43 @@ int main(int argc, char* argv[]) {
                 for (auto& b : buttons) b.render(renderer);
             }
             quickBall.render(renderer);
+            
+            // --- REPLAY PLAYBACK UI ---
+            if (replay_player.is_playing || replay_player.get_current_frame() > 0) {
+                // Progress bar at top
+                int bar_x = 20;
+                int bar_y = 20;
+                int bar_w = SCREEN_WIDTH * SCALE - 40;
+                int bar_h = 8;
+                
+                // Background
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+                SDL_Rect bar_bg = {bar_x - 2, bar_y - 2, bar_w + 4, bar_h + 4};
+                SDL_RenderFillRect(renderer, &bar_bg);
+                
+                // Progress
+                float progress = replay_player.get_progress();
+                int progress_w = (int)(bar_w * progress);
+                SDL_SetRenderDrawColor(renderer, 50, 150, 250, 200);
+                SDL_Rect bar_progress = {bar_x, bar_y, progress_w, bar_h};
+                SDL_RenderFillRect(renderer, &bar_progress);
+                
+                // Border
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
+                SDL_RenderDrawRect(renderer, &bar_bg);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                
+                // Frame counter
+                std::stringstream frame_ss;
+                frame_ss << replay_player.get_current_frame() << " / " << replay_player.get_total_frames();
+                font_small.draw_text(renderer, frame_ss.str(), bar_x, bar_y + bar_h + 5, {255, 255, 255, 255});
+                
+                // Replay name
+                std::string status = replay_player.is_playing ? "▶ Playing: " : "⏸ Paused: ";
+                status += replay_player.replay_name;
+                font_small.draw_text(renderer, status, bar_x + 150, bar_y + bar_h + 5, {255, 255, 255, 255});
+            }
             
             if (audio_device != 0) {
                 const std::vector<float>& samples = emu.get_audio_samples();
