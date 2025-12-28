@@ -989,7 +989,11 @@ struct QuickBall {
                              std::cout << "[QuickBall] Share: Not Implemented" << std::endl;
                         } else if (item.id == 1) { // Snapshot
                              const uint8_t* fb = emu.get_framebuffer();
-                             SDL_Surface* ss = SDL_CreateRGBSurfaceWithFormatFrom((void*)fb, 256, 240, 32, 256*4, SDL_PIXELFORMAT_RGBA32);
+                             // Copy framebuffer to temp buffer to ensure safety
+                             std::vector<uint8_t> temp_fb(256 * 240 * 4);
+                             std::memcpy(temp_fb.data(), fb, temp_fb.size());
+                             
+                             SDL_Surface* ss = SDL_CreateRGBSurfaceWithFormatFrom(temp_fb.data(), 256, 240, 32, 256*4, SDL_PIXELFORMAT_RGBA32);
                              if (ss) {
                                  // Ensure directory exists
                                  if (!fs::exists("snapshots")) {
