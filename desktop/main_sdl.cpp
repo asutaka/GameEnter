@@ -929,7 +929,7 @@ void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joyst
     recorder.record_frame(p1_buttons, p2_buttons);
 }
 
-enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_MULTIPLAYER_LOBBY };
+enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_MULTIPLAYER_LOBBY, SCENE_LOBBY };
 
 // Home Screen Panels
 enum HomePanel { 
@@ -1361,6 +1361,13 @@ int main(int argc, char* argv[]) {
     std::string duo_host_name = "";
     bool duo_rom_selector_open = false;
     int duo_active_input_field = -1; // -1: none, 0: host name
+    
+    // Lobby State
+    bool lobby_is_host = false;
+    bool lobby_player2_connected = false;
+    std::string lobby_rom_path = "";
+    std::string lobby_rom_name = "";
+    std::string lobby_host_name = "";
     
     // --- UI SETUP ---
     VirtualJoystick joystick;
@@ -2026,8 +2033,22 @@ int main(int argc, char* argv[]) {
                                 std::cout << "   ROM: " << duo_selected_rom_name << std::endl;
                                 std::cout << "   Path: " << duo_selected_rom_path << std::endl;
                                 
-                                // TODO Phase 3: Transition to SCENE_LOBBY
-                                // For now, just log and stay in Duo panel
+                                // Transition to Lobby
+                                lobby_is_host = true;
+                                lobby_player2_connected = false;
+                                lobby_rom_path = duo_selected_rom_path;
+                                lobby_rom_name = duo_selected_rom_name;
+                                lobby_host_name = duo_host_name;
+                                
+                                // Load ROM (but don't start yet)
+                                if (emu.load_rom(lobby_rom_path.c_str())) {
+                                    emu.reset();
+                                    std::cout << "✅ ROM loaded, entering lobby..." << std::endl;
+                                    current_scene = SCENE_LOBBY;
+                                } else {
+                                    std::cerr << "❌ Failed to load ROM!" << std::endl;
+                                    discovery.stop_advertising();
+                                }
                             }
                         }
                     }
@@ -2806,6 +2827,76 @@ int main(int argc, char* argv[]) {
                 SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255); // Gray
                 SDL_RenderFillRect(renderer, &btnNo);
                 font_body.draw_text(renderer, "No", cx + 10 + 40, cy + 20 + 28, {255, 255, 255, 255});
+            }
+
+        } else if (current_scene == SCENE_LOBBY) {
+            // === LOBBY SCENE ===
+            SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
+            SDL_RenderClear(renderer);
+            
+            int cx = (SCREEN_WIDTH * SCALE) / 2;
+            int cy = (SCREEN_HEIGHT * SCALE) / 2;
+            
+            // Title
+            std::string title = lobby_is_host ? "Hosting: " + lobby_host_name : "Joining: " + lobby_host_name;
+            font_title.draw_text(renderer, title, cx - 150, 100, {50, 50, 50, 255});
+            
+            // ROM Info
+            std::string rom_info = "ROM: " + lobby_rom_name;
+            font_body.draw_text(renderer, rom_info, cx - 100, 150, {100, 100, 100, 255});
+            
+            // Players Box
+            SDL_Rect players_box = {cx - 200, cy - 100, 400, 200};
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderFillRect(renderer, &players_box);
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+            SDL_RenderDrawRect(renderer, &players_box);
+            
+            // Player 1 (Host)
+            SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
+            draw_filled_circle(renderer, players_box.x + 30, players_box.y + 50, 10);
+            std::string p1_text = lobby_is_host ? lobby_host_name + " (You)" : lobby_host_name;
+            font_body.draw_text(renderer, "🎮 Player 1: " + p1_text, players_box.x + 50, players_box.y + 40, {50, 50, 50, 255});
+            
+            // Player 2 (Client)
+            if (lobby_player2_connected) {
+                SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
+                draw_filled_circle(renderer, players_box.x + 30, players_box.y + 120, 10);
+                std::string p2_text = lobby_is_host ? "Player 2" : "You";
+                font_body.draw_text(renderer, "🎮 Player 2: " + p2_text, players_box.x + 50, players_box.y + 110, {50, 50, 50, 255});
+            } else {
+                SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                draw_filled_circle(renderer, players_box.x + 30, players_box.y + 120, 10);
+                font_body.draw_text(renderer, "⏳ Waiting for Player 2...", players_box.x + 50, players_box.y + 110, {150, 150, 150, 255});
+            }
+            
+            // Buttons
+            if (lobby_is_host) {
+                // Cancel Button
+                SDL_Rect cancel_btn = {cx - 200, cy + 150, 100, 40};
+                SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255);
+                SDL_RenderFillRect(renderer, &cancel_btn);
+                font_body.draw_text(renderer, "Cancel", cancel_btn.x + 25, cancel_btn.y + 10, {255, 255, 255, 255});
+                
+                // Start Button (enabled only if P2 connected)
+                SDL_Rect start_btn = {cx + 100, cy + 150, 100, 40};
+                if (lobby_player2_connected) {
+                    SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
+                } else {
+                    SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                }
+                SDL_RenderFillRect(renderer, &start_btn);
+                SDL_Color start_color = lobby_player2_connected ? SDL_Color{255, 255, 255, 255} : SDL_Color{220, 220, 220, 255};
+                font_body.draw_text(renderer, "Start", start_btn.x + 30, start_btn.y + 10, start_color);
+            } else {
+                // Leave Button (Client)
+                SDL_Rect leave_btn = {cx - 50, cy + 150, 100, 40};
+                SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255);
+                SDL_RenderFillRect(renderer, &leave_btn);
+                font_body.draw_text(renderer, "Leave", leave_btn.x + 30, leave_btn.y + 10, {255, 255, 255, 255});
+                
+                // Status
+                font_small.draw_text(renderer, "Waiting for host to start...", cx - 100, cy + 120, {120, 120, 120, 255});
             }
 
         } else if (current_scene == SCENE_SETTINGS) {
