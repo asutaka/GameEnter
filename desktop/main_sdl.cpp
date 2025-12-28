@@ -958,6 +958,10 @@ struct QuickBall {
             }
             if (expanded) {
                 for (const auto& item : items) {
+                    // Skip Reset and Timer during replay
+                    bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
+                    if (is_replaying && (item.id == 2 || item.id == 4)) continue;
+
                     int idx = mx - item.x; int idy = my - item.y;
                     if (idx*idx + idy*idy <= item.r*item.r) {
                         if (item.id == 0) { // Share
@@ -1019,6 +1023,10 @@ struct QuickBall {
     void render(SDL_Renderer* renderer) {
         if (expanded) {
             for (const auto& item : items) {
+                // Skip Reset and Timer during replay
+                bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
+                if (is_replaying && (item.id == 2 || item.id == 4)) continue;
+
                 SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
                 draw_filled_circle(renderer, item.x, item.y, item.r);
                 SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
@@ -1355,7 +1363,11 @@ int main(int argc, char* argv[]) {
                     quit = true;
                 }
             }
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_r && current_scene == SCENE_GAME) emu.reset();
+            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_r && current_scene == SCENE_GAME) {
+                if (!replay_player.is_playing && replay_player.get_current_frame() == 0) {
+                    emu.reset();
+                }
+            }
             
             if (e.type == SDL_CONTROLLERDEVICEADDED) {
                 SDL_GameController* c = SDL_GameControllerOpen(e.cdevice.which);
@@ -2364,7 +2376,8 @@ int main(int argc, char* argv[]) {
             SDL_UpdateTexture(texture, NULL, framebuffer, SCREEN_WIDTH * 4);
             SDL_RenderCopy(renderer, texture, NULL, NULL);
             
-            if (connected_controllers.empty()) {
+            bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
+            if (connected_controllers.empty() && !is_replaying) {
                 joystick.render(renderer);
                 for (auto& b : buttons) b.render(renderer);
             }
@@ -2396,10 +2409,17 @@ int main(int argc, char* argv[]) {
                 SDL_RenderDrawRect(renderer, &bar_bg);
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
                 
-                // Frame counter
-                std::stringstream frame_ss;
-                frame_ss << replay_player.get_current_frame() << " / " << replay_player.get_total_frames();
-                font_small.draw_text(renderer, frame_ss.str(), bar_x, bar_y + bar_h + 5, {255, 255, 255, 255});
+                // Time display (MM:SS / MM:SS)
+                int cur_seconds = (int)(replay_player.get_current_frame() / 60.0f);
+                int tot_seconds = (int)(replay_player.get_total_frames() / 60.0f);
+                
+                std::stringstream time_ss;
+                time_ss << std::setfill('0') << std::setw(2) << (cur_seconds / 60) << ":" 
+                        << std::setw(2) << (cur_seconds % 60) << " / "
+                        << std::setw(2) << (tot_seconds / 60) << ":" 
+                        << std::setw(2) << (tot_seconds % 60);
+                
+                font_small.draw_text(renderer, time_ss.str(), bar_x, bar_y + bar_h + 5, {255, 255, 255, 255});
                 
                 // Replay name
                 std::string status = replay_player.is_playing ? "▶ Playing: " : "⏸ Paused: ";
