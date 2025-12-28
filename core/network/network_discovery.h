@@ -31,6 +31,7 @@ public:
         std::string ip;
         std::string username;
         std::string game_name;
+        std::string rom_path;  // ROM path for validation
         uint16_t port;
         std::chrono::steady_clock::time_point last_seen;
     };
@@ -42,7 +43,8 @@ public:
     void shutdown();
 
     // Start broadcasting presence
-    void start_advertising(const std::string& device_id, const std::string& username, const std::string& game_name, uint16_t tcp_port);
+    void start_advertising(const std::string& device_id, const std::string& username, 
+                          const std::string& game_name, const std::string& rom_path, uint16_t tcp_port);
     
     // Stop broadcasting
     void stop_advertising();
@@ -64,6 +66,7 @@ private:
     std::string my_device_id_;
     std::string my_username_;
     std::string my_game_name_;
+    std::string my_rom_path_;
     uint16_t my_tcp_port_;
 
     // Peers list

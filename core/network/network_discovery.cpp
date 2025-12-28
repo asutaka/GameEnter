@@ -13,6 +13,7 @@ struct DiscoveryPacket {
     char device_id[33];
     char username[32];
     char game_name[32];
+    char rom_path[256];  // ROM path for validation
     uint16_t tcp_port;
 };
 
@@ -84,12 +85,14 @@ void NetworkDiscovery::shutdown() {
 #endif
 }
 
-void NetworkDiscovery::start_advertising(const std::string& device_id, const std::string& username, const std::string& game_name, uint16_t tcp_port) {
+void NetworkDiscovery::start_advertising(const std::string& device_id, const std::string& username, 
+                                         const std::string& game_name, const std::string& rom_path, uint16_t tcp_port) {
     if (advertising_) return;
 
     my_device_id_ = device_id;
     my_username_ = username;
     my_game_name_ = game_name;
+    my_rom_path_ = rom_path;
     my_tcp_port_ = tcp_port;
     
     advertising_ = true;
@@ -111,6 +114,8 @@ void NetworkDiscovery::broadcast_loop() {
         packet.username[31] = '\0';
         strncpy(packet.game_name, my_game_name_.c_str(), 31);
         packet.game_name[31] = '\0';
+        strncpy(packet.rom_path, my_rom_path_.c_str(), 255);
+        packet.rom_path[255] = '\0';
         packet.tcp_port = my_tcp_port_;
 
         sockaddr_in dest_addr;
@@ -151,6 +156,7 @@ void NetworkDiscovery::receive_loop() {
                         peer.ip = ip; // Update IP in case it changed
                         peer.username = packet.username; // Update username
                         peer.game_name = packet.game_name;
+                        peer.rom_path = packet.rom_path;
                         peer.port = packet.tcp_port;
                         peer.last_seen = std::chrono::steady_clock::now();
                         found = true;
@@ -164,6 +170,7 @@ void NetworkDiscovery::receive_loop() {
                     new_peer.ip = ip;
                     new_peer.username = packet.username;
                     new_peer.game_name = packet.game_name;
+                    new_peer.rom_path = packet.rom_path;
                     new_peer.port = packet.tcp_port;
                     new_peer.last_seen = std::chrono::steady_clock::now();
                     peers_.push_back(new_peer);
