@@ -934,8 +934,9 @@ enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_MULTIPLAYER_LOBBY };
 // Home Screen Panels
 enum HomePanel { 
     HOME_PANEL_ROM_GRID = 0,  // Default panel showing ROM grid
-    HOME_PANEL_LIBRARY = 1,   // Future: Library view
-    HOME_PANEL_FAVORITES = 2  // Future: Favorites
+    HOME_PANEL_LIBRARY = 1,   // PlayBack (formerly Library)
+    HOME_PANEL_FAVORITES = 2, // Duo (formerly Favorites)
+    HOME_PANEL_TOURNAMENT = 3 // Tournament
 };
 
 int home_active_panel = HOME_PANEL_ROM_GRID; // Track current active panel
@@ -1552,11 +1553,14 @@ int main(int argc, char* argv[]) {
                             // ROM Grid tab
                             home_active_panel = HOME_PANEL_ROM_GRID;
                         } else if (mx >= tab_start_x + tab_w + tab_gap && mx <= tab_start_x + 2 * tab_w + tab_gap) {
-                            // Library tab
+                            // PlayBack tab
                             home_active_panel = HOME_PANEL_LIBRARY;
                         } else if (mx >= tab_start_x + 2 * (tab_w + tab_gap) && mx <= tab_start_x + 3 * tab_w + 2 * tab_gap) {
-                            // Favorites tab
+                            // Duo tab
                             home_active_panel = HOME_PANEL_FAVORITES;
+                        } else if (mx >= tab_start_x + 3 * (tab_w + tab_gap) && mx <= tab_start_x + 4 * tab_w + 3 * tab_gap) {
+                            // Tournament tab
+                            home_active_panel = HOME_PANEL_TOURNAMENT;
                         }
                     }
 
@@ -2028,8 +2032,9 @@ int main(int argc, char* argv[]) {
             };
             std::vector<PanelTab> tabs = {
                 {"ROM Grid", HOME_PANEL_ROM_GRID},
-                {"Library", HOME_PANEL_LIBRARY},
-                {"Favorites", HOME_PANEL_FAVORITES}
+                {"PlayBack", HOME_PANEL_LIBRARY},
+                {"Duo", HOME_PANEL_FAVORITES},
+                {"Tournament", HOME_PANEL_TOURNAMENT}
             };
             
             // Draw tabs
@@ -2330,12 +2335,19 @@ int main(int argc, char* argv[]) {
                 
                 
             } else if (home_active_panel == HOME_PANEL_FAVORITES) {
-                // --- FAVORITES PANEL (Placeholder) ---
+                // --- DUO PANEL (Placeholder) ---
                 int cx = (SCREEN_WIDTH * SCALE) / 2;
                 int cy = (SCREEN_HEIGHT * SCALE) / 2;
                 
-                font_title.draw_text(renderer, "Favorites", cx - 80, cy - 50, {100, 100, 100, 255});
-                font_body.draw_text(renderer, "Coming Soon...", cx - 70, cy, {150, 150, 150, 255});
+                font_title.draw_text(renderer, "Duo Mode", cx - 80, cy - 50, {100, 100, 100, 255});
+                font_body.draw_text(renderer, "Multiplayer features coming soon...", cx - 120, cy, {150, 150, 150, 255});
+            } else if (home_active_panel == HOME_PANEL_TOURNAMENT) {
+                // --- TOURNAMENT PANEL (Placeholder) ---
+                int cx = (SCREEN_WIDTH * SCALE) / 2;
+                int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                
+                font_title.draw_text(renderer, "Tournament", cx - 90, cy - 50, {100, 100, 100, 255});
+                font_body.draw_text(renderer, "Tournament brackets coming soon...", cx - 130, cy, {150, 150, 150, 255});
             }
 
             // --- HEADER (Draw last to be on top of scrolling content) ---
