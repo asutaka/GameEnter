@@ -724,10 +724,10 @@ std::string import_cover_image(const std::string& source_path, const std::string
         std::string::size_type pos = std::string(buffer).find_last_of("\\/");
         std::string exe_dir = std::string(buffer).substr(0, pos);
         
-        // 2. Create 'covers' directory if not exists
-        fs::path covers_dir = fs::path(exe_dir) / "covers";
+        // 2. Create 'images/covers' directory if not exists
+        fs::path covers_dir = fs::path(exe_dir) / "images" / "covers";
         if (!fs::exists(covers_dir)) {
-            fs::create_directory(covers_dir);
+            fs::create_directories(covers_dir);
         }
 
         // 3. Generate Destination Path
