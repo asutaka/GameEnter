@@ -149,6 +149,134 @@ public:
 
 Recorder recorder;
 
+// --- Replay Library System ---
+struct ReplayFileInfo {
+    std::string filename;        // Full filename (e.g., "replay_Contra_20251228_170530.rpl")
+    std::string display_name;    // Display name (e.g., "Contra - 2025/12/28 17:05:30")
+    std::string full_path;       // Full path to file
+    uint32_t total_frames;       // Number of frames in replay
+    std::string date_time;       // Formatted date/time
+    size_t file_size;            // File size in bytes
+    
+    ReplayFileInfo() : total_frames(0), file_size(0) {}
+};
+
+// Function to scan saves folder and get list of replay files
+std::vector<ReplayFileInfo> scan_replay_files() {
+    std::vector<ReplayFileInfo> replays;
+    
+    try {
+        // Get exe directory
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+        std::string exe_dir = std::string(buffer).substr(0, pos);
+        
+        fs::path saves_dir = fs::path(exe_dir) / "saves";
+        
+        // Check if saves directory exists
+        if (!fs::exists(saves_dir)) {
+            return replays; // Return empty list
+        }
+        
+        // Iterate through all .rpl files
+        for (const auto& entry : fs::directory_iterator(saves_dir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".rpl") {
+                ReplayFileInfo info;
+                info.filename = entry.path().filename().string();
+                info.full_path = entry.path().string();
+                info.file_size = fs::file_size(entry.path());
+                
+                // Try to read header to get frame count
+                std::ifstream file(info.full_path, std::ios::binary);
+                if (file) {
+                    ReplayHeader header;
+                    file.read((char*)&header, sizeof(header));
+                    if (file && header.signature[0] == 'N' && header.signature[1] == 'E' && 
+                        header.signature[2] == 'S' && header.signature[3] == 'R') {
+                        info.total_frames = header.total_frames;
+                    }
+                    file.close();
+                }
+                
+                // Parse filename to extract game name and date/time
+                // Format: replay_GameName_YYYYMMDD_HHMMSS.rpl
+                std::string name = info.filename;
+                if (name.substr(0, 7) == "replay_" && name.size() > 23) {
+                    // Remove "replay_" prefix and ".rpl" suffix
+                    name = name.substr(7, name.size() - 11);
+                    
+                    // Find last two underscores (date and time)
+                    size_t last_underscore = name.rfind('_');
+                    size_t second_last_underscore = name.rfind('_', last_underscore - 1);
+                    
+                    if (last_underscore != std::string::npos && second_last_underscore != std::string::npos) {
+                        std::string game_name = name.substr(0, second_last_underscore);
+                        std::string date_str = name.substr(second_last_underscore + 1, 8);
+                        std::string time_str = name.substr(last_underscore + 1, 6);
+                        
+                        // Replace underscores with spaces in game name
+                        std::replace(game_name.begin(), game_name.end(), '_', ' ');
+                        
+                        // Format date: YYYYMMDD -> YYYY/MM/DD
+                        if (date_str.size() == 8) {
+                            info.date_time = date_str.substr(0, 4) + "/" + 
+                                           date_str.substr(4, 2) + "/" + 
+                                           date_str.substr(6, 2);
+                        }
+                        
+                        // Format time: HHMMSS -> HH:MM:SS
+                        if (time_str.size() == 6) {
+                            info.date_time += " " + time_str.substr(0, 2) + ":" + 
+                                            time_str.substr(2, 2) + ":" + 
+                                            time_str.substr(4, 2);
+                        }
+                        
+                        info.display_name = game_name + " - " + info.date_time;
+                    } else {
+                        info.display_name = name;
+                    }
+                } else {
+                    info.display_name = info.filename;
+                }
+                
+                replays.push_back(info);
+            }
+        }
+        
+        // Sort by date/time (most recent first)
+        // Extract YYYYMMDD_HHMMSS from filename and compare
+        std::sort(replays.begin(), replays.end(), [](const ReplayFileInfo& a, const ReplayFileInfo& b) {
+            // Extract date/time portion: replay_GameName_YYYYMMDD_HHMMSS.rpl
+            auto extract_datetime = [](const std::string& filename) -> std::string {
+                // Find last two underscores
+                size_t last_dot = filename.rfind('.');
+                if (last_dot == std::string::npos) return "";
+                
+                std::string name_part = filename.substr(0, last_dot);
+                size_t last_underscore = name_part.rfind('_');
+                if (last_underscore == std::string::npos) return "";
+                
+                size_t second_last_underscore = name_part.rfind('_', last_underscore - 1);
+                if (second_last_underscore == std::string::npos) return "";
+                
+                // Return YYYYMMDD_HHMMSS
+                return name_part.substr(second_last_underscore + 1);
+            };
+            
+            std::string datetime_a = extract_datetime(a.filename);
+            std::string datetime_b = extract_datetime(b.filename);
+            
+            return datetime_a > datetime_b; // Most recent first
+        });
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error scanning replay files: " << e.what() << std::endl;
+    }
+    
+    return replays;
+}
+
 // --- Font System (stb_truetype) ---
 struct FontSystem {
     stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
@@ -1025,6 +1153,11 @@ int main(int argc, char* argv[]) {
     int menu_x = 0;
     int menu_y = 0;
 
+    // Library Panel State
+    std::vector<ReplayFileInfo> replay_files;
+    int library_scroll_y = 0;
+    int selected_replay_index = -1;
+
     // --- UI SETUP ---
     VirtualJoystick joystick;
     joystick.init(100, (SCREEN_HEIGHT * SCALE) - 100, 60);
@@ -1118,20 +1251,35 @@ int main(int argc, char* argv[]) {
 
             // Home Screen Interactions
             if (current_scene == SCENE_HOME) {
-                // Scrolling (only for ROM Grid panel)
-                if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup && !showing_context_menu && home_active_panel == HOME_PANEL_ROM_GRID) {
-                    scroll_y -= e.wheel.y * scroll_speed;
-                    if (scroll_y < 0) scroll_y = 0;
-                    
-                    int slot_h = 250;
-                    int gap = 20;
-                    int cols = 3;
-                    int rows = (int)(slots.size() + cols - 1) / cols;
-                    int content_height = 150 + rows * (slot_h + gap) + 50; 
-                    int view_height = SCREEN_HEIGHT * SCALE;
-                    int max_scroll = (std::max)(0, content_height - view_height);
-                    
-                    if (scroll_y > max_scroll) scroll_y = max_scroll;
+                // Scrolling
+                if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup && !showing_context_menu) {
+                    if (home_active_panel == HOME_PANEL_ROM_GRID) {
+                        // ROM Grid scrolling
+                        scroll_y -= e.wheel.y * scroll_speed;
+                        if (scroll_y < 0) scroll_y = 0;
+                        
+                        int slot_h = 250;
+                        int gap = 20;
+                        int cols = 3;
+                        int rows = (int)(slots.size() + cols - 1) / cols;
+                        int content_height = 150 + rows * (slot_h + gap) + 50; 
+                        int view_height = SCREEN_HEIGHT * SCALE;
+                        int max_scroll = (std::max)(0, content_height - view_height);
+                        
+                        if (scroll_y > max_scroll) scroll_y = max_scroll;
+                    } else if (home_active_panel == HOME_PANEL_LIBRARY) {
+                        // Library scrolling
+                        library_scroll_y -= e.wheel.y * scroll_speed;
+                        if (library_scroll_y < 0) library_scroll_y = 0;
+                        
+                        int item_height = 80;
+                        int item_margin = 10;
+                        int content_height = replay_files.size() * (item_height + item_margin);
+                        int view_height = SCREEN_HEIGHT * SCALE - 160; // Account for header and tabs
+                        int max_scroll = (std::max)(0, content_height - view_height);
+                        
+                        if (library_scroll_y > max_scroll) library_scroll_y = max_scroll;
+                    }
                 }
 
                 if (e.type == SDL_MOUSEBUTTONDOWN) {
@@ -1383,6 +1531,51 @@ int main(int argc, char* argv[]) {
                                         // Normal Click -> Load Game
                                         mouse_down_slot = (int)i;
                                     }
+                                }
+                            }
+                        }
+                    } else if (home_active_panel == HOME_PANEL_LIBRARY) {
+                        // Library Panel Clicks
+                        int panel_content_y = 140;
+                        int refresh_x = SCREEN_WIDTH * SCALE - 100;
+                        int refresh_y = panel_content_y + 10;
+                        
+                        // Check Refresh button click
+                        if (mx >= refresh_x && mx <= refresh_x + 80 && my >= refresh_y && my <= refresh_y + 30) {
+                            replay_files = scan_replay_files();
+                            library_scroll_y = 0;
+                            selected_replay_index = -1;
+                            std::cout << "🔄 Refreshed replay library: " << replay_files.size() << " files found" << std::endl;
+                        } else {
+                            // Check replay item clicks
+                            int list_start_y = panel_content_y + 20;
+                            int item_height = 80;
+                            int item_margin = 10;
+                            int list_x = 40;
+                            int list_width = SCREEN_WIDTH * SCALE - 80;
+                            
+                            for (size_t i = 0; i < replay_files.size(); i++) {
+                                int item_y = list_start_y + i * (item_height + item_margin) - library_scroll_y;
+                                
+                                // Check if click is within item bounds
+                                if (mx >= list_x && mx <= list_x + list_width && 
+                                    my >= item_y && my <= item_y + item_height) {
+                                    selected_replay_index = (int)i;
+                                    
+                                    // Check if clicked on play button
+                                    int play_x = list_x + list_width - 40;
+                                    int play_y = item_y + item_height / 2;
+                                    int dx = mx - play_x;
+                                    int dy = my - play_y;
+                                    
+                                    if (dx*dx + dy*dy <= 20*20) {
+                                        // Play button clicked - TODO: Implement replay playback
+                                        std::cout << "▶️ Play replay: " << replay_files[i].display_name << std::endl;
+                                        std::cout << "   File: " << replay_files[i].full_path << std::endl;
+                                        std::cout << "   Frames: " << replay_files[i].total_frames << std::endl;
+                                        // TODO: Load and play replay
+                                    }
+                                    break;
                                 }
                             }
                         }
@@ -1650,12 +1843,98 @@ int main(int argc, char* argv[]) {
                     }
                 }
             } else if (home_active_panel == HOME_PANEL_LIBRARY) {
-                // --- LIBRARY PANEL (Placeholder) ---
-                int cx = (SCREEN_WIDTH * SCALE) / 2;
-                int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                // --- LIBRARY PANEL ---
+                int panel_content_y = 140; // Below tabs
+                int list_start_y = panel_content_y + 20;
+                int item_height = 80;
+                int item_margin = 10;
+                int list_x = 40;
+                int list_width = SCREEN_WIDTH * SCALE - 80;
                 
-                font_title.draw_text(renderer, "Library View", cx - 100, cy - 50, {100, 100, 100, 255});
-                font_body.draw_text(renderer, "Coming Soon...", cx - 70, cy, {150, 150, 150, 255});
+                // Scan for replay files if list is empty
+                if (replay_files.empty()) {
+                    replay_files = scan_replay_files();
+                }
+                
+                if (replay_files.empty()) {
+                    // No replays found
+                    int cx = (SCREEN_WIDTH * SCALE) / 2;
+                    int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                    
+                    font_title.draw_text(renderer, "No Replays Found", cx - 120, cy - 30, {150, 150, 150, 255});
+                    font_body.draw_text(renderer, "Record gameplay to see replays here", cx - 140, cy + 10, {180, 180, 180, 255});
+                } else {
+                    // Draw replay list
+                    for (size_t i = 0; i < replay_files.size(); i++) {
+                        int item_y = list_start_y + i * (item_height + item_margin) - library_scroll_y;
+                        
+                        // Culling
+                        if (item_y + item_height < panel_content_y || item_y > SCREEN_HEIGHT * SCALE) continue;
+                        
+                        SDL_Rect item_rect = {list_x, item_y, list_width, item_height};
+                        
+                        // Item background
+                        if (selected_replay_index == (int)i) {
+                            SDL_SetRenderDrawColor(renderer, 230, 240, 255, 255); // Light blue for selected
+                        } else {
+                            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White
+                        }
+                        SDL_RenderFillRect(renderer, &item_rect);
+                        
+                        // Item border
+                        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                        SDL_RenderDrawRect(renderer, &item_rect);
+                        
+                        // Draw replay info
+                        const auto& replay = replay_files[i];
+                        
+                        // Title (Game name + date/time)
+                        font_body.draw_text(renderer, replay.display_name, list_x + 15, item_y + 15, {34, 43, 50, 255});
+                        
+                        // Duration (frames to time)
+                        float duration_seconds = replay.total_frames / 60.0f; // Assuming 60 FPS
+                        int minutes = (int)(duration_seconds / 60);
+                        int seconds = (int)duration_seconds % 60;
+                        std::stringstream duration_ss;
+                        duration_ss << "Duration: " << minutes << "m " << seconds << "s";
+                        font_small.draw_text(renderer, duration_ss.str(), list_x + 15, item_y + 40, {100, 100, 100, 255});
+                        
+                        // File size
+                        float size_kb = replay.file_size / 1024.0f;
+                        std::stringstream size_ss;
+                        size_ss << std::fixed << std::setprecision(1) << size_kb << " KB";
+                        font_small.draw_text(renderer, size_ss.str(), list_x + 200, item_y + 40, {100, 100, 100, 255});
+                        
+                        // Frame count
+                        std::stringstream frames_ss;
+                        frames_ss << replay.total_frames << " frames";
+                        font_small.draw_text(renderer, frames_ss.str(), list_x + 320, item_y + 40, {100, 100, 100, 255});
+                        
+                        // Play icon (right side)
+                        int play_x = list_x + list_width - 40;
+                        int play_y = item_y + item_height / 2;
+                        SDL_SetRenderDrawColor(renderer, 50, 150, 50, 255); // Green
+                        draw_filled_circle(renderer, play_x, play_y, 20);
+                        
+                        // Play triangle
+                        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                        int tx1 = play_x - 6, ty1 = play_y - 8;
+                        int tx2 = play_x + 8, ty2 = play_y;
+                        int tx3 = play_x - 6, ty3 = play_y + 8;
+                        SDL_RenderDrawLine(renderer, tx1, ty1, tx2, ty2);
+                        SDL_RenderDrawLine(renderer, tx2, ty2, tx3, ty3);
+                        SDL_RenderDrawLine(renderer, tx3, ty3, tx1, ty1);
+                    }
+                }
+                
+                // Refresh button (top right of panel)
+                int refresh_x = SCREEN_WIDTH * SCALE - 100;
+                int refresh_y = panel_content_y + 10;
+                SDL_Rect refresh_btn = {refresh_x, refresh_y, 80, 30};
+                SDL_SetRenderDrawColor(renderer, 100, 150, 200, 255);
+                SDL_RenderFillRect(renderer, &refresh_btn);
+                font_small.draw_text(renderer, "Refresh", refresh_x + 15, refresh_y + 8, {255, 255, 255, 255});
+                
                 
             } else if (home_active_panel == HOME_PANEL_FAVORITES) {
                 // --- FAVORITES PANEL (Placeholder) ---
