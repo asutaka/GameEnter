@@ -439,60 +439,95 @@ struct VirtualButton {
 
 // Input Handling
 void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joystick, const std::vector<VirtualButton>& buttons, const std::vector<SDL_GameController*>& controllers) {
-    uint8_t nes_buttons = 0;
+    // --- Player 1 ---
+    uint8_t p1_buttons = 0;
     
-    // 1. Keyboard
-    if (keys[SDL_SCANCODE_Z])      nes_buttons |= (1 << Input::BUTTON_A);
-    if (keys[SDL_SCANCODE_X])      nes_buttons |= (1 << Input::BUTTON_B);
-    if (keys[SDL_SCANCODE_A])      nes_buttons |= (1 << Input::BUTTON_SELECT); 
-    if (keys[SDL_SCANCODE_S])      nes_buttons |= (1 << Input::BUTTON_START);
-    if (keys[SDL_SCANCODE_UP])     nes_buttons |= (1 << Input::BUTTON_UP);
-    if (keys[SDL_SCANCODE_DOWN])   nes_buttons |= (1 << Input::BUTTON_DOWN);
-    if (keys[SDL_SCANCODE_LEFT])   nes_buttons |= (1 << Input::BUTTON_LEFT);
-    if (keys[SDL_SCANCODE_RIGHT])  nes_buttons |= (1 << Input::BUTTON_RIGHT);
+    // 1. Keyboard P1
+    if (keys[SDL_SCANCODE_Z])      p1_buttons |= (1 << Input::BUTTON_A);
+    if (keys[SDL_SCANCODE_X])      p1_buttons |= (1 << Input::BUTTON_B);
+    if (keys[SDL_SCANCODE_A])      p1_buttons |= (1 << Input::BUTTON_SELECT); 
+    if (keys[SDL_SCANCODE_S])      p1_buttons |= (1 << Input::BUTTON_START);
+    if (keys[SDL_SCANCODE_UP])     p1_buttons |= (1 << Input::BUTTON_UP);
+    if (keys[SDL_SCANCODE_DOWN])   p1_buttons |= (1 << Input::BUTTON_DOWN);
+    if (keys[SDL_SCANCODE_LEFT])   p1_buttons |= (1 << Input::BUTTON_LEFT);
+    if (keys[SDL_SCANCODE_RIGHT])  p1_buttons |= (1 << Input::BUTTON_RIGHT);
     
-    // 2. Virtual Controls (Only if no controller connected)
+    // 2. Virtual Controls (P1 only)
     if (controllers.empty()) {
-        if (joystick.up)    nes_buttons |= (1 << Input::BUTTON_UP);
-        if (joystick.down)  nes_buttons |= (1 << Input::BUTTON_DOWN);
-        if (joystick.left)  nes_buttons |= (1 << Input::BUTTON_LEFT);
-        if (joystick.right) nes_buttons |= (1 << Input::BUTTON_RIGHT);
+        if (joystick.up)    p1_buttons |= (1 << Input::BUTTON_UP);
+        if (joystick.down)  p1_buttons |= (1 << Input::BUTTON_DOWN);
+        if (joystick.left)  p1_buttons |= (1 << Input::BUTTON_LEFT);
+        if (joystick.right) p1_buttons |= (1 << Input::BUTTON_RIGHT);
 
         for (const auto& btn : buttons) {
-            if (btn.pressed) nes_buttons |= (1 << btn.nes_button_mapping);
+            if (btn.pressed) p1_buttons |= (1 << btn.nes_button_mapping);
         }
     }
 
-    // 3. Game Controller (Gamepad)
+    // 3. Game Controller 1
     if (!controllers.empty()) {
-        SDL_GameController* ctrl = controllers[0]; // Use first controller
+        SDL_GameController* ctrl = controllers[0];
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_A)) p1_buttons |= (1 << Input::BUTTON_A);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_B)) p1_buttons |= (1 << Input::BUTTON_B);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_X)) p1_buttons |= (1 << Input::BUTTON_B);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_Y)) p1_buttons |= (1 << Input::BUTTON_A);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_START)) p1_buttons |= (1 << Input::BUTTON_START);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_BACK))  p1_buttons |= (1 << Input::BUTTON_SELECT);
         
-        // Buttons
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_A)) nes_buttons |= (1 << Input::BUTTON_A);
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_B)) nes_buttons |= (1 << Input::BUTTON_B);
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_X)) nes_buttons |= (1 << Input::BUTTON_B); // X also shoots
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_Y)) nes_buttons |= (1 << Input::BUTTON_A); // Y also jumps
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_START)) nes_buttons |= (1 << Input::BUTTON_START);
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_BACK))  nes_buttons |= (1 << Input::BUTTON_SELECT);
-        
-        // D-Pad
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_UP))    nes_buttons |= (1 << Input::BUTTON_UP);
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_DOWN))  nes_buttons |= (1 << Input::BUTTON_DOWN);
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_LEFT))  nes_buttons |= (1 << Input::BUTTON_LEFT);
-        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) nes_buttons |= (1 << Input::BUTTON_RIGHT);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_UP))    p1_buttons |= (1 << Input::BUTTON_UP);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_DOWN))  p1_buttons |= (1 << Input::BUTTON_DOWN);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_LEFT))  p1_buttons |= (1 << Input::BUTTON_LEFT);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) p1_buttons |= (1 << Input::BUTTON_RIGHT);
 
-        // Analog Stick (Left Stick)
         int16_t axisX = SDL_GameControllerGetAxis(ctrl, SDL_CONTROLLER_AXIS_LEFTX);
         int16_t axisY = SDL_GameControllerGetAxis(ctrl, SDL_CONTROLLER_AXIS_LEFTY);
         const int DEADZONE = 8000;
-
-        if (axisY < -DEADZONE) nes_buttons |= (1 << Input::BUTTON_UP);
-        if (axisY > DEADZONE)  nes_buttons |= (1 << Input::BUTTON_DOWN);
-        if (axisX < -DEADZONE) nes_buttons |= (1 << Input::BUTTON_LEFT);
-        if (axisX > DEADZONE)  nes_buttons |= (1 << Input::BUTTON_RIGHT);
+        if (axisY < -DEADZONE) p1_buttons |= (1 << Input::BUTTON_UP);
+        if (axisY > DEADZONE)  p1_buttons |= (1 << Input::BUTTON_DOWN);
+        if (axisX < -DEADZONE) p1_buttons |= (1 << Input::BUTTON_LEFT);
+        if (axisX > DEADZONE)  p1_buttons |= (1 << Input::BUTTON_RIGHT);
     }
     
-    emu.set_controller(0, nes_buttons);
+    emu.set_controller(0, p1_buttons);
+
+    // --- Player 2 ---
+    uint8_t p2_buttons = 0;
+
+    // 1. Keyboard P2 (IJKL + O/P)
+    if (keys[SDL_SCANCODE_P])      p2_buttons |= (1 << Input::BUTTON_A);
+    if (keys[SDL_SCANCODE_O])      p2_buttons |= (1 << Input::BUTTON_B);
+    if (keys[SDL_SCANCODE_7])      p2_buttons |= (1 << Input::BUTTON_SELECT);
+    if (keys[SDL_SCANCODE_8])      p2_buttons |= (1 << Input::BUTTON_START);
+    if (keys[SDL_SCANCODE_I])      p2_buttons |= (1 << Input::BUTTON_UP);
+    if (keys[SDL_SCANCODE_K])      p2_buttons |= (1 << Input::BUTTON_DOWN);
+    if (keys[SDL_SCANCODE_J])      p2_buttons |= (1 << Input::BUTTON_LEFT);
+    if (keys[SDL_SCANCODE_L])      p2_buttons |= (1 << Input::BUTTON_RIGHT);
+
+    // 2. Game Controller 2
+    if (controllers.size() > 1) {
+        SDL_GameController* ctrl = controllers[1];
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_A)) p2_buttons |= (1 << Input::BUTTON_A);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_B)) p2_buttons |= (1 << Input::BUTTON_B);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_X)) p2_buttons |= (1 << Input::BUTTON_B);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_Y)) p2_buttons |= (1 << Input::BUTTON_A);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_START)) p2_buttons |= (1 << Input::BUTTON_START);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_BACK))  p2_buttons |= (1 << Input::BUTTON_SELECT);
+        
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_UP))    p2_buttons |= (1 << Input::BUTTON_UP);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_DOWN))  p2_buttons |= (1 << Input::BUTTON_DOWN);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_LEFT))  p2_buttons |= (1 << Input::BUTTON_LEFT);
+        if (SDL_GameControllerGetButton(ctrl, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) p2_buttons |= (1 << Input::BUTTON_RIGHT);
+
+        int16_t axisX = SDL_GameControllerGetAxis(ctrl, SDL_CONTROLLER_AXIS_LEFTX);
+        int16_t axisY = SDL_GameControllerGetAxis(ctrl, SDL_CONTROLLER_AXIS_LEFTY);
+        const int DEADZONE = 8000;
+        if (axisY < -DEADZONE) p2_buttons |= (1 << Input::BUTTON_UP);
+        if (axisY > DEADZONE)  p2_buttons |= (1 << Input::BUTTON_DOWN);
+        if (axisX < -DEADZONE) p2_buttons |= (1 << Input::BUTTON_LEFT);
+        if (axisX > DEADZONE)  p2_buttons |= (1 << Input::BUTTON_RIGHT);
+    }
+
+    emu.set_controller(1, p2_buttons);
 }
 
 enum Scene { SCENE_HOME, SCENE_GAME };

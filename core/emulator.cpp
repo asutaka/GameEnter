@@ -110,11 +110,7 @@ void Emulator::set_controller(int controller, uint8_t buttons) {
     // buttons: A, B, Select, Start, Up, Down, Left, Right (bits 0-7)
     for (int i = 0; i < 8; i++) {
         bool pressed = (buttons & (1 << i)) != 0;
-        if (controller == 0) {
-            input_.set_button_state(i, pressed);
-        } else if (controller == 1) {
-            // TODO: Controller 2 support if needed
-        }
+        input_.set_button_state(controller, i, pressed);
     }
 }
 

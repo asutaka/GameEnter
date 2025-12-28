@@ -41,11 +41,12 @@ public:
     uint8_t read_controller2();
 
     /**
-     * @brief Set the state of a specific button for Controller 1
+     * @brief Set the state of a specific button
+     * @param controller_id 0 for Player 1, 1 for Player 2
      * @param button Index of button (0-7)
      * @param pressed True if pressed, false otherwise
      */
-    void set_button_state(int button, bool pressed);
+    void set_button_state(int controller_id, int button, bool pressed);
 
     // Button mapping indices
     static constexpr int BUTTON_A      = 0;

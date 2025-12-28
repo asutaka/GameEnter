@@ -74,13 +74,18 @@ uint8_t Input::read_controller2() {
     return value;
 }
 
-void Input::set_button_state(int button, bool pressed) {
+void Input::set_button_state(int controller_id, int button, bool pressed) {
     if (button < 0 || button > 7) return;
     
+    uint8_t* state = nullptr;
+    if (controller_id == 0) state = &controller1_state_;
+    else if (controller_id == 1) state = &controller2_state_;
+    else return;
+    
     if (pressed) {
-        controller1_state_ |= (1 << button);
+        *state |= (1 << button);
     } else {
-        controller1_state_ &= ~(1 << button);
+        *state &= ~(1 << button);
     }
 }
 
