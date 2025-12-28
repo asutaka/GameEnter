@@ -647,6 +647,44 @@ std::string open_file_dialog() {
 std::string open_file_dialog() { return ""; } // Not implemented for other OS
 #endif
 
+// Helper: Import cover image to local storage
+std::string import_cover_image(const std::string& source_path, const std::string& game_name) {
+    try {
+        // 1. Get Exe Directory
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+        std::string exe_dir = std::string(buffer).substr(0, pos);
+        
+        // 2. Create 'covers' directory if not exists
+        fs::path covers_dir = fs::path(exe_dir) / "covers";
+        if (!fs::exists(covers_dir)) {
+            fs::create_directory(covers_dir);
+        }
+
+        // 3. Generate Destination Path
+        // Sanitize game name for filename
+        std::string safe_name = game_name;
+        std::replace(safe_name.begin(), safe_name.end(), ' ', '_');
+        std::replace(safe_name.begin(), safe_name.end(), ':', '-');
+        std::replace(safe_name.begin(), safe_name.end(), '/', '-');
+        std::replace(safe_name.begin(), safe_name.end(), '\\', '-');
+        
+        std::string ext = fs::path(source_path).extension().string();
+        fs::path dest_path = covers_dir / (safe_name + ext);
+
+        // 4. Copy File
+        // Use copy_options::overwrite_existing to update if exists
+        fs::copy_file(source_path, dest_path, fs::copy_options::overwrite_existing);
+        
+        std::cout << "📥 Imported cover to: " << dest_path.string() << std::endl;
+        return dest_path.string();
+    } catch (const std::exception& e) {
+        std::cerr << "❌ Error importing cover: " << e.what() << std::endl;
+        return source_path; // Fallback to original path
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0) {
         std::cerr << "SDL Init Failed: " << SDL_GetError() << std::endl;
@@ -888,22 +926,37 @@ int main(int argc, char* argv[]) {
                         int w = 150; int h = 100;
                         // Add Shortcut
                         if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + 35) {
-                            // Create Shortcut (Batch file on Desktop)
+                            // Create Shortcut (.lnk) using PowerShell
                             if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
                                 std::string desktop_path = getenv("USERPROFILE");
                                 desktop_path += "\\Desktop\\";
-                                std::string bat_path = desktop_path + slots[context_menu_slot].name + ".bat";
-                                std::ofstream bat_file(bat_path);
-                                if (bat_file.is_open()) {
-                                    char buffer[MAX_PATH];
-                                    GetModuleFileNameA(NULL, buffer, MAX_PATH);
-                                    std::string exe_path = buffer;
-                                    std::string rom_path = slots[context_menu_slot].rom_path;
-                                    
-                                    bat_file << "@echo off" << std::endl;
-                                    bat_file << "start \"\" \"" << exe_path << "\" \"" << rom_path << "\"" << std::endl;
-                                    bat_file.close();
+                                std::string shortcut_path = desktop_path + slots[context_menu_slot].name + ".lnk";
+                                
+                                char buffer[MAX_PATH];
+                                GetModuleFileNameA(NULL, buffer, MAX_PATH);
+                                std::string exe_path = buffer;
+                                std::string rom_path = slots[context_menu_slot].rom_path;
+                                std::string icon_path = slots[context_menu_slot].cover_path;
+
+                                // Build PowerShell command to create shortcut
+                                // Note: We use single quotes for PowerShell strings to avoid escaping hell
+                                std::string ps_cmd = "powershell.exe -ExecutionPolicy Bypass -NoProfile -Command \"";
+                                ps_cmd += "$ws = New-Object -ComObject WScript.Shell; ";
+                                ps_cmd += "$s = $ws.CreateShortcut('" + shortcut_path + "'); ";
+                                ps_cmd += "$s.TargetPath = '" + exe_path + "'; ";
+                                // Argument needs double quotes inside single quotes to handle spaces in ROM path
+                                ps_cmd += "$s.Arguments = '\"" + rom_path + "\"'; "; 
+                                
+                                // Set Icon if available
+                                if (!icon_path.empty()) {
+                                    ps_cmd += "$s.IconLocation = '" + icon_path + "'; ";
                                 }
+                                
+                                ps_cmd += "$s.Save()\"";
+
+                                // Execute command
+                                system(ps_cmd.c_str());
+                                std::cout << "✅ Created shortcut: " << shortcut_path << std::endl;
                             }
                             showing_context_menu = false;
                         }
@@ -927,8 +980,9 @@ int main(int argc, char* argv[]) {
                                 ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
                                 
                                 if (GetOpenFileName(&ofn) == TRUE) {
-                                    // Lưu cover path
-                                    slots[context_menu_slot].cover_path = szFile;
+                                    // Import cover image to local storage
+                                    std::string new_cover_path = import_cover_image(szFile, slots[context_menu_slot].name);
+                                    slots[context_menu_slot].cover_path = new_cover_path;
                                     
                                     // Destroy texture cũ nếu có
                                     if (slots[context_menu_slot].cover_texture) {
@@ -936,7 +990,7 @@ int main(int argc, char* argv[]) {
                                     }
                                     
                                     // Load texture mới
-                                    slots[context_menu_slot].cover_texture = load_texture(renderer, szFile);
+                                    slots[context_menu_slot].cover_texture = load_texture(renderer, new_cover_path);
                                     
                                     std::cout << "✅ Đã thay đổi cover: " << szFile << std::endl;
                                     
