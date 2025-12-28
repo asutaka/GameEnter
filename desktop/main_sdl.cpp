@@ -1556,9 +1556,23 @@ int main(int argc, char* argv[]) {
             // Avatar
             font_body.draw_text(renderer, "Avatar:", 450, start_y - 25, {200, 200, 200, 255});
             SDL_Rect avatar_box = {450, start_y, 100, 100};
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-            SDL_RenderFillRect(renderer, &avatar_box);
-            font_small.draw_text(renderer, "Click to change", 455, start_y + 40, {150, 150, 150, 255});
+            
+            // Render Avatar Image if available
+            SDL_Texture* avatar_tex = nullptr;
+            if (!settings_avatar_path.empty()) {
+                avatar_tex = load_texture(renderer, settings_avatar_path);
+            }
+
+            if (avatar_tex) {
+                SDL_RenderCopy(renderer, avatar_tex, NULL, &avatar_box);
+                SDL_DestroyTexture(avatar_tex); // Clean up immediately as we reload every frame (inefficient but simple for now)
+            } else {
+                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                SDL_RenderFillRect(renderer, &avatar_box);
+                font_small.draw_text(renderer, "Click to change", 455, start_y + 40, {150, 150, 150, 255});
+            }
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Border
+            SDL_RenderDrawRect(renderer, &avatar_box);
             
             // Save Button
             SDL_Rect save_btn = {50, 300, 100, 40};
