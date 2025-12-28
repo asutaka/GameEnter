@@ -101,9 +101,16 @@ public:
     void save_to_file() {
         if (frames.empty()) return;
 
-        // Ensure 'saves' directory exists
-        if (!fs::exists("saves")) {
-            fs::create_directory("saves");
+        // 1. Get Exe Directory
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+        std::string exe_dir = std::string(buffer).substr(0, pos);
+
+        // 2. Ensure 'saves' directory exists
+        fs::path saves_dir = fs::path(exe_dir) / "saves";
+        if (!fs::exists(saves_dir)) {
+            fs::create_directory(saves_dir);
         }
 
         auto now = std::chrono::system_clock::now();
@@ -117,8 +124,9 @@ public:
         std::replace(safe_name.begin(), safe_name.end(), '/', '_');
         std::replace(safe_name.begin(), safe_name.end(), '\\', '_');
 
-        ss_name << "saves/replay_" << safe_name << "_" << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".rpl";
-        std::string filename = ss_name.str();
+        ss_name << "replay_" << safe_name << "_" << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".rpl";
+        fs::path full_path = saves_dir / ss_name.str();
+        std::string filename = full_path.string();
 
         std::ofstream outfile(filename, std::ios::binary);
         if (!outfile) {
