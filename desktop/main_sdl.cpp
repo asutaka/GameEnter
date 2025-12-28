@@ -2427,24 +2427,29 @@ int main(int argc, char* argv[]) {
             // handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers); // REMOVED from here
             
             // Handle Playback Speed Logic
+            // Handle Playback Speed Logic
+            // Handle Playback Speed Logic
             if (replay_player.is_playing) {
-                float speed = replay_player.playback_speed;
-                replay_player.speed_accumulator += speed;
-                
-                int frames_to_run = 0;
-                while (replay_player.speed_accumulator >= 1.0f) {
-                    frames_to_run++;
-                    replay_player.speed_accumulator -= 1.0f;
-                }
-                
-                for (int k = 0; k < frames_to_run; k++) {
-                    // Update inputs for this specific frame from replay
-                    handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
+                // Only run replay if QuickBall is NOT expanded
+                if (!quickBall.expanded) {
+                    float speed = replay_player.playback_speed;
+                    replay_player.speed_accumulator += speed;
                     
-                    // If replay finishes mid-loop, stop
-                    if (!replay_player.is_playing) break; 
+                    int frames_to_run = 0;
+                    while (replay_player.speed_accumulator >= 1.0f) {
+                        frames_to_run++;
+                        replay_player.speed_accumulator -= 1.0f;
+                    }
+                    
+                    for (int k = 0; k < frames_to_run; k++) {
+                        // Update inputs for this specific frame from replay
+                        handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
+                        
+                        // If replay finishes mid-loop, stop
+                        if (!replay_player.is_playing) break; 
 
-                    emu.run_frame();
+                        emu.run_frame();
+                    }
                 }
             } else {
                 // Normal gameplay or Paused Replay
