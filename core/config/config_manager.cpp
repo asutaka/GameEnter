@@ -54,6 +54,12 @@ void ConfigManager::parse_line(const std::string& line) {
         std::string key = line.substr(0, delimiter_pos);
         std::string value = line.substr(delimiter_pos + 1);
 
+        // Trim whitespace and \r
+        key.erase(0, key.find_first_not_of(" \t"));
+        key.erase(key.find_last_not_of(" \t\r") + 1);
+        value.erase(0, value.find_first_not_of(" \t"));
+        value.erase(value.find_last_not_of(" \t\r") + 1);
+
         if (key == "device_id") device_id_ = value;
         else if (key == "nickname") nickname_ = value;
         else if (key == "avatar_path") avatar_path_ = value;
