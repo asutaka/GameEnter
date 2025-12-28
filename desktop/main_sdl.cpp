@@ -2011,7 +2011,23 @@ int main(int argc, char* argv[]) {
                             if (can_create && mx >= create_btn.x && mx <= create_btn.x + create_btn.w &&
                                 my >= create_btn.y && my <= create_btn.y + create_btn.h) {
                                 std::cout << "🎮 Creating host: " << duo_host_name << " | ROM: " << duo_selected_rom_name << std::endl;
-                                // TODO: Implement create host logic in Phase 2
+                                
+                                // Start broadcasting presence with ROM info
+                                discovery.start_advertising(
+                                    config.get_device_id(),
+                                    duo_host_name,  // Use host name as username
+                                    duo_selected_rom_name,
+                                    duo_selected_rom_path,
+                                    6503  // TCP port for connections
+                                );
+                                
+                                std::cout << "📡 Broadcasting host on LAN..." << std::endl;
+                                std::cout << "   Host: " << duo_host_name << std::endl;
+                                std::cout << "   ROM: " << duo_selected_rom_name << std::endl;
+                                std::cout << "   Path: " << duo_selected_rom_path << std::endl;
+                                
+                                // TODO Phase 3: Transition to SCENE_LOBBY
+                                // For now, just log and stay in Duo panel
                             }
                         }
                     }
@@ -2537,18 +2553,77 @@ int main(int argc, char* argv[]) {
                 font_title.draw_text(renderer, "AVAILABLE HOSTS", content_x, section_y, {50, 50, 50, 255});
                 section_y += 50;
                 
-                // Placeholder for host list
+                // Get hosts from discovery
+                auto available_hosts = discovery.get_peers();
+                
+                // Host list container
                 SDL_Rect hosts_container = {content_x, section_y, content_width, 250};
                 SDL_SetRenderDrawColor(renderer, 250, 250, 250, 255);
                 SDL_RenderFillRect(renderer, &hosts_container);
                 SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
                 SDL_RenderDrawRect(renderer, &hosts_container);
                 
-                // Empty state message
-                int empty_cx = content_x + content_width / 2;
-                int empty_cy = section_y + 125;
-                font_body.draw_text(renderer, "No hosts found", empty_cx - 60, empty_cy - 10, {150, 150, 150, 255});
-                font_small.draw_text(renderer, "Searching for hosts on local network...", empty_cx - 110, empty_cy + 20, {180, 180, 180, 255});
+                if (available_hosts.empty()) {
+                    // Empty state message
+                    int empty_cx = content_x + content_width / 2;
+                    int empty_cy = section_y + 125;
+                    font_body.draw_text(renderer, "No hosts found", empty_cx - 60, empty_cy - 10, {150, 150, 150, 255});
+                    font_small.draw_text(renderer, "Searching for hosts on local network...", empty_cx - 110, empty_cy + 20, {180, 180, 180, 255});
+                } else {
+                    // Render host list
+                    int item_y = section_y + 10;
+                    int item_h = 70;
+                    int item_margin = 10;
+                    
+                    for (size_t i = 0; i < available_hosts.size() && i < 3; i++) {
+                        const auto& host = available_hosts[i];
+                        
+                        SDL_Rect item = {content_x + 10, item_y, content_width - 20, item_h};
+                        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                        SDL_RenderFillRect(renderer, &item);
+                        SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
+                        SDL_RenderDrawRect(renderer, &item);
+                        
+                        // Host icon (green circle)
+                        SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
+                        draw_filled_circle(renderer, item.x + 25, item.y + item_h / 2, 8);
+                        
+                        // Host name
+                        font_body.draw_text(renderer, host.username, item.x + 45, item.y + 10, {50, 50, 50, 255});
+                        
+                        // ROM name
+                        std::string rom_info = "ROM: " + host.game_name;
+                        font_small.draw_text(renderer, rom_info, item.x + 45, item.y + 35, {120, 120, 120, 255});
+                        
+                        // Check if we have this ROM
+                        bool has_rom = false;
+                        for (const auto& slot : slots) {
+                            if (slot.occupied && slot.rom_path == host.rom_path) {
+                                has_rom = true;
+                                break;
+                            }
+                        }
+                        
+                        // Connect button
+                        SDL_Rect connect_btn = {item.x + item.w - 110, item.y + 20, 90, 30};
+                        if (has_rom) {
+                            SDL_SetRenderDrawColor(renderer, 50, 150, 250, 255);
+                        } else {
+                            SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                        }
+                        SDL_RenderFillRect(renderer, &connect_btn);
+                        
+                        SDL_Color btn_text = has_rom ? SDL_Color{255, 255, 255, 255} : SDL_Color{220, 220, 220, 255};
+                        font_body.draw_text(renderer, "Connect", connect_btn.x + 15, connect_btn.y + 5, btn_text);
+                        
+                        // ROM not found indicator
+                        if (!has_rom) {
+                            font_small.draw_text(renderer, "❌ ROM not found", item.x + 45, item.y + 50, {200, 80, 80, 255});
+                        }
+                        
+                        item_y += item_h + item_margin;
+                    }
+                }
                 
                 // ROM Selector Overlay
                 if (duo_rom_selector_open) {
