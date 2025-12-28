@@ -13,11 +13,19 @@
 #include <sstream>
 #include <filesystem> // Added for directory creation
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#include <commdlg.h>
+#endif
+
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#include "slot_manager.h"
 
 using namespace nes;
 namespace fs = std::filesystem; // Alias for convenience
@@ -678,10 +686,43 @@ int main(int argc, char* argv[]) {
     struct Slot {
         std::string rom_path;
         std::string name;
+        std::string cover_path;  // Path to cover image
         bool occupied = false;
         SDL_Texture* cover_texture = nullptr; // Add texture support
     };
     std::vector<Slot> slots(12); // Default 12 slots
+    
+    // Determine absolute path for slots file based on Executable location
+    char buffer[MAX_PATH];
+    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+    std::string exe_dir = std::string(buffer).substr(0, pos);
+    std::string slots_file = exe_dir + "\\game_slots.txt";
+    
+    // Load slots đã lưu từ file (nếu có)
+    std::vector<SlotManager::Slot> saved_slots;
+    if (SlotManager::load_slots(slots_file, saved_slots)) {
+        // Convert SlotManager::Slot sang local Slot struct
+        for (size_t i = 0; i < saved_slots.size() && i < slots.size(); i++) {
+            slots[i].rom_path = saved_slots[i].rom_path;
+            slots[i].name = saved_slots[i].name;
+            slots[i].occupied = true;
+            
+            // Load cover image từ saved path hoặc tìm tự động
+            std::string cover_path = saved_slots[i].cover_path;
+            if (cover_path.empty() || !std::filesystem::exists(cover_path)) {
+                // Nếu không có cover path hoặc file không tồn tại, tìm tự động
+                cover_path = find_cover_image(saved_slots[i].rom_path);
+            }
+            
+            // Lưu cover_path vào slot
+            slots[i].cover_path = cover_path;
+            
+            if (!cover_path.empty()) {
+                slots[i].cover_texture = load_texture(renderer, cover_path);
+            }
+        }
+    }
     
     // Pre-load if arg provided (into slot 0)
     if (argc > 1) {
@@ -824,6 +865,15 @@ int main(int argc, char* argv[]) {
                                 slots.erase(slots.begin() + delete_candidate_index);
                                 // Ensure min size
                                 while (slots.size() < 12) slots.push_back(Slot());
+                                
+                                // Auto-save
+                                std::vector<SlotManager::Slot> slots_to_save;
+                                for (const auto& slot : slots) {
+                                    if (slot.occupied) {
+                                        slots_to_save.push_back(SlotManager::Slot(slot.rom_path, slot.name, slot.cover_path));
+                                    }
+                                }
+                                SlotManager::save_slots(slots_file, slots_to_save);
                             }
                             showing_delete_popup = false;
                             delete_candidate_index = -1;
@@ -835,9 +885,9 @@ int main(int argc, char* argv[]) {
                         }
                     } else if (showing_context_menu) {
                         // Handle Context Menu Clicks
-                        int w = 150; int h = 80;
+                        int w = 150; int h = 100;
                         // Add Shortcut
-                        if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + 40) {
+                        if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + 35) {
                             // Create Shortcut (Batch file on Desktop)
                             if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
                                 std::string desktop_path = getenv("USERPROFILE");
@@ -857,8 +907,54 @@ int main(int argc, char* argv[]) {
                             }
                             showing_context_menu = false;
                         }
+                        // Change Cover
+                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + 35 && my <= menu_y + 65) {
+                            #ifdef _WIN32
+                            if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
+                                OPENFILENAME ofn;
+                                char szFile[260] = {0};
+                                
+                                ZeroMemory(&ofn, sizeof(ofn));
+                                ofn.lStructSize = sizeof(ofn);
+                                ofn.hwndOwner = NULL;
+                                ofn.lpstrFile = szFile;
+                                ofn.nMaxFile = sizeof(szFile);
+                                ofn.lpstrFilter = "Images\0*.PNG;*.JPG;*.JPEG;*.BMP\0All Files\0*.*\0";
+                                ofn.nFilterIndex = 1;
+                                ofn.lpstrFileTitle = NULL;
+                                ofn.nMaxFileTitle = 0;
+                                ofn.lpstrInitialDir = NULL;
+                                ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+                                
+                                if (GetOpenFileName(&ofn) == TRUE) {
+                                    // Lưu cover path
+                                    slots[context_menu_slot].cover_path = szFile;
+                                    
+                                    // Destroy texture cũ nếu có
+                                    if (slots[context_menu_slot].cover_texture) {
+                                        SDL_DestroyTexture(slots[context_menu_slot].cover_texture);
+                                    }
+                                    
+                                    // Load texture mới
+                                    slots[context_menu_slot].cover_texture = load_texture(renderer, szFile);
+                                    
+                                    std::cout << "✅ Đã thay đổi cover: " << szFile << std::endl;
+                                    
+                                    // Auto-save
+                                    std::vector<SlotManager::Slot> slots_to_save;
+                                    for (const auto& slot : slots) {
+                                        if (slot.occupied) {
+                                            slots_to_save.push_back(SlotManager::Slot(slot.rom_path, slot.name, slot.cover_path));
+                                        }
+                                    }
+                                    SlotManager::save_slots(slots_file, slots_to_save);
+                                }
+                            }
+                            #endif
+                            showing_context_menu = false;
+                        }
                         // Delete
-                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + 40 && my <= menu_y + 80) {
+                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + 65 && my <= menu_y + 100) {
                             delete_candidate_index = context_menu_slot;
                             showing_delete_popup = true;
                             showing_context_menu = false;
@@ -915,6 +1011,15 @@ int main(int argc, char* argv[]) {
                                         if (!cover_path.empty()) {
                                             slots[i].cover_texture = load_texture(renderer, cover_path);
                                         }
+                                        
+                                        // Auto-save
+                                        std::vector<SlotManager::Slot> slots_to_save;
+                                        for (const auto& slot : slots) {
+                                            if (slot.occupied) {
+                                                slots_to_save.push_back(SlotManager::Slot(slot.rom_path, slot.name, slot.cover_path));
+                                            }
+                                        }
+                                        SlotManager::save_slots(slots_file, slots_to_save);
                                     }
                                 } else if (slots[i].occupied) {
                                     // Check if clicked on "3 dots" area (Top Right)
@@ -1104,7 +1209,7 @@ int main(int argc, char* argv[]) {
 
             // --- CONTEXT MENU ---
             if (showing_context_menu) {
-                int w = 150; int h = 80;
+                int w = 150; int h = 100;
                 SDL_Rect menu = {menu_x, menu_y, w, h};
                 
                 // Shadow
@@ -1121,14 +1226,21 @@ int main(int argc, char* argv[]) {
                 SDL_RenderDrawRect(renderer, &menu);
 
                 // Add Shortcut Item
-                font_small.draw_text(renderer, "Add Shortcut", menu_x + 10, menu_y + 25, {0, 0, 0, 255});
+                font_small.draw_text(renderer, "Add Shortcut", menu_x + 10, menu_y + 15, {0, 0, 0, 255});
                 
-                // Separator
+                // Separator 1
                 SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
-                SDL_RenderDrawLine(renderer, menu_x, menu_y + 40, menu_x + w, menu_y + 40);
+                SDL_RenderDrawLine(renderer, menu_x, menu_y + 35, menu_x + w, menu_y + 35);
+
+                // Change Cover Item
+                font_small.draw_text(renderer, "Change Cover", menu_x + 10, menu_y + 45, {0, 100, 200, 255});
+                
+                // Separator 2
+                SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
+                SDL_RenderDrawLine(renderer, menu_x, menu_y + 65, menu_x + w, menu_y + 65);
 
                 // Delete Item
-                font_small.draw_text(renderer, "Delete", menu_x + 10, menu_y + 65, {200, 50, 50, 255});
+                font_small.draw_text(renderer, "Delete", menu_x + 10, menu_y + 75, {200, 50, 50, 255});
             }
 
             // --- POPUP ---
@@ -1208,6 +1320,15 @@ int main(int argc, char* argv[]) {
             fps_timer = current_time;
         }
     }
+
+    // Save slots trước khi thoát
+    std::vector<SlotManager::Slot> slots_to_save;
+    for (const auto& slot : slots) {
+        if (slot.occupied) {
+            slots_to_save.push_back(SlotManager::Slot(slot.rom_path, slot.name, slot.cover_path));
+        }
+    }
+    SlotManager::save_slots(slots_file, slots_to_save);
 
     font_title.cleanup();
     font_body.cleanup();
