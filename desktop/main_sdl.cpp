@@ -153,6 +153,7 @@ Recorder recorder;
 class ReplayPlayer {
 public:
     bool is_playing = false;
+    bool replay_finished = false;  // Flag to indicate replay has finished
     std::vector<ReplayFrame> frames;
     size_t current_frame_index = 0;
     std::string replay_name;
@@ -202,6 +203,7 @@ public:
         }
         
         is_playing = true;
+        replay_finished = false;
         current_frame_index = 0;
         std::cout << "[ReplayPlayer] Started playback" << std::endl;
     }
@@ -231,6 +233,7 @@ public:
                 // Replay finished
                 std::cout << "[ReplayPlayer] Replay finished" << std::endl;
                 is_playing = false;
+                replay_finished = true;  // Set flag to trigger return to Library
             }
             return false;
         }
@@ -2342,6 +2345,16 @@ int main(int argc, char* argv[]) {
 
         } else {
             // --- GAME SCENE ---
+            
+            // Check if replay has finished and return to Library
+            if (replay_player.replay_finished) {
+                std::cout << "🔙 Replay finished, returning to Library" << std::endl;
+                current_scene = SCENE_HOME;
+                home_active_panel = HOME_PANEL_LIBRARY;
+                replay_player.replay_finished = false;  // Reset flag
+                continue;  // Skip this frame and go to next iteration
+            }
+            
             const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
             handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
             
