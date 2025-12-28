@@ -196,6 +196,15 @@ public:
         }
     }
     
+    float playback_speed = 1.0f;
+
+    void set_speed(float speed) {
+        playback_speed = speed;
+        if (playback_speed < 0.5f) playback_speed = 0.5f;
+        if (playback_speed > 4.0f) playback_speed = 4.0f;
+        std::cout << "[ReplayPlayer] Speed set to: " << playback_speed << "x" << std::endl;
+    }
+
     void start_playback() {
         if (frames.empty()) {
             std::cerr << "[ReplayPlayer] No replay loaded" << std::endl;
@@ -205,13 +214,22 @@ public:
         is_playing = true;
         replay_finished = false;
         current_frame_index = 0;
+        playback_speed = 1.0f;
         std::cout << "[ReplayPlayer] Started playback" << std::endl;
     }
     
     void stop_playback() {
         is_playing = false;
         current_frame_index = 0;
+        playback_speed = 1.0f;
         std::cout << "[ReplayPlayer] Stopped playback" << std::endl;
+    }
+
+    void unload_replay() {
+        stop_playback();
+        frames.clear();
+        replay_name = "";
+        std::cout << "[ReplayPlayer] Unloaded replay" << std::endl;
     }
     
     void pause_playback() {
@@ -1387,8 +1405,39 @@ int main(int argc, char* argv[]) {
             if (current_scene == SCENE_GAME) {
                 // Check QuickBall first
                 if (quickBall.handle_event(e, current_scene, emu)) {
-                    // Event consumed by QuickBall, do nothing else
-                } else if (connected_controllers.empty()) {
+                    // Event consumed by QuickBall
+                } 
+                // Check Replay Controls if Replay is active
+                else if ((replay_player.is_playing || replay_player.get_current_frame() > 0) && e.type == SDL_MOUSEBUTTONDOWN) {
+                    int mx = e.button.x;
+                    int my = e.button.y;
+                    
+                    // Coordinates must match Render logic
+                    int bar_y = 20;
+                    int bar_h = 8;
+                    int ctrl_y = bar_y + bar_h + 5;
+                    int btn_size = 20;
+                    int start_x = SCREEN_WIDTH * SCALE - 40; // Play/Pause
+                    int ff_x = start_x - 30; // Fast Forward
+                    int rw_x = ff_x - 30; // Slow Down
+
+                    // Play/Pause
+                    if (mx >= start_x && mx <= start_x + btn_size && my >= ctrl_y && my <= ctrl_y + btn_size) {
+                        if (replay_player.is_playing) replay_player.pause_playback();
+                        else replay_player.resume_playback();
+                    }
+                    // Fast Forward (>>)
+                    else if (mx >= ff_x && mx <= ff_x + btn_size && my >= ctrl_y && my <= ctrl_y + btn_size) {
+                        float s = replay_player.playback_speed;
+                        if (s < 4.0f) replay_player.set_speed(s * 2.0f);
+                    }
+                    // Slow Down (<<)
+                    else if (mx >= rw_x && mx <= rw_x + btn_size && my >= ctrl_y && my <= ctrl_y + btn_size) {
+                        float s = replay_player.playback_speed;
+                        if (s > 0.5f) replay_player.set_speed(s / 2.0f);
+                    }
+                }
+                else if (connected_controllers.empty()) {
                     joystick.handle_event(e);
                     for (auto& b : buttons) b.handle_event(e);
                 }
@@ -1795,6 +1844,10 @@ int main(int argc, char* argv[]) {
                                 emu.memory_.write(0x2006, 0x3F); emu.memory_.write(0x2006, 0x00);
                                 emu.memory_.write(0x2007, 0x0F); emu.memory_.write(0x2007, 0x30);
                                 emu.memory_.write(0x2007, 0x16); emu.memory_.write(0x2007, 0x27);
+                                
+                                // Ensure replay is unloaded so we don't get stuck in "Paused Replay" mode
+                                replay_player.unload_replay();
+                                
                                 current_scene = SCENE_GAME;
                                 
                                 // Start Recording if enabled
@@ -2368,9 +2421,41 @@ int main(int argc, char* argv[]) {
             }
             
             const Uint8* currentKeyStates = SDL_GetKeyboardState(NULL);
-            handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
+            // handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers); // REMOVED from here
             
-            emu.run_frame();
+            // Handle Playback Speed Logic
+            if (replay_player.is_playing) {
+                float speed = replay_player.playback_speed;
+                static float speed_accumulator = 0.0f;
+                speed_accumulator += speed;
+                
+                int frames_to_run = 0;
+                while (speed_accumulator >= 1.0f) {
+                    frames_to_run++;
+                    speed_accumulator -= 1.0f;
+                }
+                
+                for (int k = 0; k < frames_to_run; k++) {
+                    // Update inputs for this specific frame from replay
+                    handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
+                    
+                    // If replay finishes mid-loop, stop
+                    if (!replay_player.is_playing) break; 
+
+                    emu.run_frame();
+                }
+            } else {
+                // Normal gameplay or Paused Replay
+                handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
+
+                // Check if we are in "Paused Replay" mode
+                // If frames are loaded but not playing, it's a paused replay.
+                bool is_replay_paused = !replay_player.frames.empty();
+                
+                if (!is_replay_paused) {
+                     emu.run_frame();
+                }
+            }
             
             const uint8_t* framebuffer = emu.get_framebuffer();
             SDL_UpdateTexture(texture, NULL, framebuffer, SCREEN_WIDTH * 4);
@@ -2422,9 +2507,77 @@ int main(int argc, char* argv[]) {
                 font_small.draw_text(renderer, time_ss.str(), bar_x, bar_y + bar_h + 5, {255, 255, 255, 255});
                 
                 // Replay name
-                std::string status = replay_player.is_playing ? "▶ Playing: " : "⏸ Paused: ";
+                std::string status = replay_player.is_playing ? "Playing: " : "Paused: ";
                 status += replay_player.replay_name;
                 font_small.draw_text(renderer, status, bar_x + 150, bar_y + bar_h + 5, {255, 255, 255, 255});
+
+                // --- Playback Controls (Top Right) ---
+                int ctrl_y = bar_y + bar_h + 5;
+                int btn_size = 20;
+                int start_x = SCREEN_WIDTH * SCALE - 40; // Rightmost button (Play/Pause)
+
+                // 1. Play/Pause Button
+                SDL_Rect btn_play = {start_x, ctrl_y, btn_size, btn_size};
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50); // Transparent BG
+                SDL_RenderFillRect(renderer, &btn_play);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Border
+                SDL_RenderDrawRect(renderer, &btn_play);
+                
+                // Icon
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                if (replay_player.is_playing) {
+                    // Pause Icon (||)
+                    SDL_Rect p1 = {start_x + 6, ctrl_y + 5, 3, 10};
+                    SDL_Rect p2 = {start_x + 11, ctrl_y + 5, 3, 10};
+                    SDL_RenderFillRect(renderer, &p1);
+                    SDL_RenderFillRect(renderer, &p2);
+                } else {
+                    // Play Icon (Triangle)
+                    int tx1 = start_x + 7, ty1 = ctrl_y + 5;
+                    int tx2 = start_x + 15, ty2 = ctrl_y + 10;
+                    int tx3 = start_x + 7, ty3 = ctrl_y + 15;
+                    draw_filled_triangle(renderer, tx1, ty1, tx2, ty2, tx3, ty3);
+                }
+
+                // 2. Fast Forward (>>)
+                int ff_x = start_x - 30;
+                SDL_Rect btn_ff = {ff_x, ctrl_y, btn_size, btn_size};
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
+                SDL_RenderFillRect(renderer, &btn_ff);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                SDL_RenderDrawRect(renderer, &btn_ff);
+                
+                // Icon (>>)
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                draw_filled_triangle(renderer, ff_x + 4, ctrl_y + 5, ff_x + 10, ctrl_y + 10, ff_x + 4, ctrl_y + 15);
+                draw_filled_triangle(renderer, ff_x + 10, ctrl_y + 5, ff_x + 16, ctrl_y + 10, ff_x + 10, ctrl_y + 15);
+
+                // 3. Slow Down (<<)
+                int rw_x = ff_x - 30;
+                SDL_Rect btn_rw = {rw_x, ctrl_y, btn_size, btn_size};
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
+                SDL_RenderFillRect(renderer, &btn_rw);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                SDL_RenderDrawRect(renderer, &btn_rw);
+
+                // Icon (<<)
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                draw_filled_triangle(renderer, rw_x + 16, ctrl_y + 5, rw_x + 10, ctrl_y + 10, rw_x + 16, ctrl_y + 15);
+                draw_filled_triangle(renderer, rw_x + 10, ctrl_y + 5, rw_x + 4, ctrl_y + 10, rw_x + 10, ctrl_y + 15);
+
+                // Speed Display
+                std::stringstream speed_ss;
+                speed_ss << replay_player.playback_speed << "x";
+                font_small.draw_text(renderer, speed_ss.str(), rw_x - 30, ctrl_y + 5, {200, 200, 200, 255});
+
+                // Handle Clicks for Controls
+                // We need to check mouse state here or in handle_event. 
+                // Since we are in the render loop, it's better to check 'e' from the event loop, but 'e' is not available here easily without restructuring.
+                // However, we can check mouse state directly for simple UI or better, move this logic to handle_input/event loop.
+                // But to keep it simple and localized, let's use the mouse_down_slot logic or similar.
+                // Actually, we should handle this in the event loop.
+                // Let's modify the event loop to check these coordinates.
+
             }
             
             if (audio_device != 0) {
