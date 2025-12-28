@@ -1426,7 +1426,10 @@ int main(int argc, char* argv[]) {
 
                     // Play/Pause
                     if (mx >= start_x && mx <= start_x + btn_size && my >= ctrl_y && my <= ctrl_y + btn_size) {
-                        if (replay_player.is_playing) replay_player.pause_playback();
+                        if (replay_player.is_playing) {
+                             replay_player.pause_playback();
+                             if (audio_device != 0) SDL_ClearQueuedAudio(audio_device);
+                        }
                         else replay_player.resume_playback();
                     }
                     // Fast Forward (>>)
@@ -2428,6 +2431,8 @@ int main(int argc, char* argv[]) {
             
             // Handle Playback Speed Logic
             // Handle Playback Speed Logic
+            bool emulator_ran = false;
+
             // Handle Playback Speed Logic
             if (replay_player.is_playing) {
                 // Only run replay if QuickBall is NOT expanded
@@ -2449,6 +2454,7 @@ int main(int argc, char* argv[]) {
                         if (!replay_player.is_playing) break; 
 
                         emu.run_frame();
+                        emulator_ran = true;
                     }
                 }
             } else {
@@ -2461,6 +2467,7 @@ int main(int argc, char* argv[]) {
                      // Normal Game: Handle Input & Run Frame
                      handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
                      emu.run_frame();
+                     emulator_ran = true;
                 }
                 // If Paused Replay: Do nothing (freeze state)
             }
@@ -2588,7 +2595,7 @@ int main(int argc, char* argv[]) {
 
             }
             
-            if (audio_device != 0) {
+            if (audio_device != 0 && emulator_ran) {
                 const std::vector<float>& samples = emu.get_audio_samples();
                 if (!samples.empty()) SDL_QueueAudio(audio_device, samples.data(), samples.size() * sizeof(float));
             }
