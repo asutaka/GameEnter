@@ -42,8 +42,6 @@ void ConfigManager::save() {
     if (file.is_open()) {
         file << "device_id=" << device_id_ << "\n";
         file << "nickname=" << nickname_ << "\n";
-        file << "full_name=" << full_name_ << "\n";
-        file << "birthday=" << birthday_ << "\n";
         file << "avatar_path=" << avatar_path_ << "\n";
     }
 }
@@ -56,13 +54,8 @@ void ConfigManager::parse_line(const std::string& line) {
         std::string key = line.substr(0, delimiter_pos);
         std::string value = line.substr(delimiter_pos + 1);
 
-        // Trim whitespace (optional, but good practice)
-        // For simplicity, assuming no leading/trailing spaces for now
-
         if (key == "device_id") device_id_ = value;
         else if (key == "nickname") nickname_ = value;
-        else if (key == "full_name") full_name_ = value;
-        else if (key == "birthday") birthday_ = value;
         else if (key == "avatar_path") avatar_path_ = value;
     }
 }
@@ -84,15 +77,11 @@ std::string ConfigManager::generate_uuid() {
 // Getters
 std::string ConfigManager::get_device_id() const { return device_id_; }
 std::string ConfigManager::get_nickname() const { return nickname_; }
-std::string ConfigManager::get_full_name() const { return full_name_; }
-std::string ConfigManager::get_birthday() const { return birthday_; }
 std::string ConfigManager::get_avatar_path() const { return avatar_path_; }
 
 // Setters
 void ConfigManager::set_device_id(const std::string& value) { device_id_ = value; }
 void ConfigManager::set_nickname(const std::string& value) { nickname_ = value; }
-void ConfigManager::set_full_name(const std::string& value) { full_name_ = value; }
-void ConfigManager::set_birthday(const std::string& value) { birthday_ = value; }
 void ConfigManager::set_avatar_path(const std::string& value) { avatar_path_ = value; }
 
 }

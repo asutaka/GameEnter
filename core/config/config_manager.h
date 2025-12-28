@@ -20,15 +20,11 @@ public:
     // Getters
     std::string get_device_id() const;
     std::string get_nickname() const;
-    std::string get_full_name() const;
-    std::string get_birthday() const;
     std::string get_avatar_path() const;
 
     // Setters
     void set_device_id(const std::string& value);
     void set_nickname(const std::string& value);
-    void set_full_name(const std::string& value);
-    void set_birthday(const std::string& value);
     void set_avatar_path(const std::string& value);
 
 private:
@@ -40,8 +36,6 @@ private:
     // Stored values
     std::string device_id_;
     std::string nickname_;
-    std::string full_name_;
-    std::string birthday_;
     std::string avatar_path_;
 };
 

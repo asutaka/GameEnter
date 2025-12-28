@@ -43,11 +43,9 @@ ConfigManager config;
 
 // Settings UI State
 std::string settings_nickname;
-std::string settings_fullname;
-std::string settings_birthday;
 std::string settings_avatar_path;
 bool settings_loaded = false;
-int active_input_field = -1; // 0: Nickname, 1: Name, 2: Birthday
+int active_input_field = -1; // 0: Nickname
 
 // Screen dimensions
 const int SCREEN_WIDTH = 256;
@@ -619,8 +617,6 @@ struct QuickBall {
                             scene = SCENE_SETTINGS;
                             // Load current config into UI buffers
                             settings_nickname = config.get_nickname();
-                            settings_fullname = config.get_full_name();
-                            settings_birthday = config.get_birthday();
                             settings_avatar_path = config.get_avatar_path();
                             settings_loaded = true;
                         }
@@ -976,6 +972,16 @@ int main(int argc, char* argv[]) {
                         discovery.start_advertising(config.get_device_id(), config.get_nickname(), "Menu", 6502);
                     }
 
+                    // Settings Button Click (Top Right Dots)
+                    int dots_x = SCREEN_WIDTH * SCALE - 40;
+                    int dots_y = 50;
+                    if (mx >= dots_x - 20 && mx <= dots_x + 20 && my >= dots_y - 20 && my <= dots_y + 20) {
+                        current_scene = SCENE_SETTINGS;
+                        settings_nickname = config.get_nickname();
+                        settings_avatar_path = config.get_avatar_path();
+                        settings_loaded = true;
+                    }
+
                     if (showing_delete_popup) {
                         // Handle Popup Clicks
                         int cx = (SCREEN_WIDTH * SCALE) / 2;
@@ -1214,14 +1220,10 @@ int main(int argc, char* argv[]) {
             if (current_scene == SCENE_SETTINGS) {
                 if (e.type == SDL_TEXTINPUT) {
                     if (active_input_field == 0) settings_nickname += e.text.text;
-                    else if (active_input_field == 1) settings_fullname += e.text.text;
-                    else if (active_input_field == 2) settings_birthday += e.text.text;
                 } else if (e.type == SDL_KEYDOWN) {
                     if (e.key.keysym.sym == SDLK_BACKSPACE) {
                         std::string* target = nullptr;
                         if (active_input_field == 0) target = &settings_nickname;
-                        else if (active_input_field == 1) target = &settings_fullname;
-                        else if (active_input_field == 2) target = &settings_birthday;
                         
                         if (target && !target->empty()) {
                             target->pop_back();
@@ -1234,15 +1236,11 @@ int main(int argc, char* argv[]) {
                     // Input Fields Hitbox (Approximate)
                     int start_y = 100;
                     if (mx > 50 && mx < 400 && my > start_y && my < start_y + 30) { active_input_field = 0; SDL_StartTextInput(); }
-                    else if (mx > 50 && mx < 400 && my > start_y + 50 && my < start_y + 80) { active_input_field = 1; SDL_StartTextInput(); }
-                    else if (mx > 50 && mx < 400 && my > start_y + 100 && my < start_y + 130) { active_input_field = 2; SDL_StartTextInput(); }
                     else { active_input_field = -1; SDL_StopTextInput(); }
 
                     // Save Button
                     if (mx > 50 && mx < 150 && my > 300 && my < 340) {
                         config.set_nickname(settings_nickname);
-                        config.set_full_name(settings_fullname);
-                        config.set_birthday(settings_birthday);
                         config.set_avatar_path(settings_avatar_path);
                         config.save();
                         current_scene = SCENE_HOME; // Return to Home
@@ -1408,13 +1406,22 @@ int main(int argc, char* argv[]) {
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
             SDL_RenderDrawRect(renderer, &mp_btn);
 
-            // Menu Dots (Top Right)
-            int mx = SCREEN_WIDTH * SCALE - 40;
-            int my = 50;
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            draw_filled_circle(renderer, mx, my - 15, 4);
-            draw_filled_circle(renderer, mx, my, 4);
-            draw_filled_circle(renderer, mx, my + 15, 4);
+            // Menu Dots (Top Right) -> Settings Icon
+            int dots_x = SCREEN_WIDTH * SCALE - 40;
+            int dots_y = 50;
+            
+            // Draw Gear Icon
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+            draw_circle_outline(renderer, dots_x, dots_y, 12);
+            draw_circle_outline(renderer, dots_x, dots_y, 6);
+            for(int k=0; k<8; k++) {
+                float angle = k * (3.14159f * 2 / 8);
+                int tx1 = dots_x + (int)(cos(angle) * 12);
+                int ty1 = dots_y + (int)(sin(angle) * 12);
+                int tx2 = dots_x + (int)(cos(angle) * 16);
+                int ty2 = dots_y + (int)(sin(angle) * 16);
+                SDL_RenderDrawLine(renderer, tx1, ty1, tx2, ty2);
+            }
 
             // --- CONTEXT MENU ---
             if (showing_context_menu) {
@@ -1509,28 +1516,6 @@ int main(int argc, char* argv[]) {
                 SDL_RenderDrawRect(renderer, &box1);
             }
             font_body.draw_text(renderer, settings_nickname, 55, start_y + 5, {255, 255, 255, 255});
-
-            // Full Name
-            font_body.draw_text(renderer, "Full Name:", 50, start_y + 50 - 25, {200, 200, 200, 255});
-            SDL_Rect box2 = {50, start_y + 50, 300, 30};
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-            SDL_RenderFillRect(renderer, &box2);
-            if (active_input_field == 1) {
-                SDL_SetRenderDrawColor(renderer, 100, 100, 200, 255);
-                SDL_RenderDrawRect(renderer, &box2);
-            }
-            font_body.draw_text(renderer, settings_fullname, 55, start_y + 50 + 5, {255, 255, 255, 255});
-
-            // Birthday
-            font_body.draw_text(renderer, "Birthday:", 50, start_y + 100 - 25, {200, 200, 200, 255});
-            SDL_Rect box3 = {50, start_y + 100, 300, 30};
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-            SDL_RenderFillRect(renderer, &box3);
-            if (active_input_field == 2) {
-                SDL_SetRenderDrawColor(renderer, 100, 100, 200, 255);
-                SDL_RenderDrawRect(renderer, &box3);
-            }
-            font_body.draw_text(renderer, settings_birthday, 55, start_y + 100 + 5, {255, 255, 255, 255});
 
             // Avatar
             font_body.draw_text(renderer, "Avatar:", 450, start_y - 25, {200, 200, 200, 255});
