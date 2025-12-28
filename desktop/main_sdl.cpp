@@ -1338,6 +1338,9 @@ int main(int argc, char* argv[]) {
     bool showing_delete_popup = false;
     int delete_candidate_index = -1;
     
+    bool showing_delete_replay_popup = false;
+    int delete_replay_index = -1;
+    
     bool showing_context_menu = false;
     int context_menu_slot = -1;
     int menu_x = 0;
@@ -1591,6 +1594,31 @@ int main(int argc, char* argv[]) {
                             showing_delete_popup = false;
                             delete_candidate_index = -1;
                         }
+                    } else if (showing_delete_replay_popup) {
+                        // Handle Replay Delete Popup Clicks
+                        int cx = (SCREEN_WIDTH * SCALE) / 2;
+                        int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                        
+                        // Yes Button
+                        if (mx >= cx - 110 && mx <= cx - 10 && my >= cy + 20 && my <= cy + 60) {
+                            // Delete Replay File
+                            if (delete_replay_index >= 0 && delete_replay_index < (int)replay_files.size()) {
+                                std::string file_path = replay_files[delete_replay_index].full_path;
+                                if (std::remove(file_path.c_str()) == 0) {
+                                    std::cout << "Deleted replay: " << file_path << std::endl;
+                                    replay_files.erase(replay_files.begin() + delete_replay_index);
+                                } else {
+                                    std::cerr << "Failed to delete replay: " << file_path << std::endl;
+                                }
+                            }
+                            showing_delete_replay_popup = false;
+                            delete_replay_index = -1;
+                        }
+                        // No Button
+                        else if (mx >= cx + 10 && mx <= cx + 110 && my >= cy + 20 && my <= cy + 60) {
+                            showing_delete_replay_popup = false;
+                            delete_replay_index = -1;
+                        }
                     } else if (showing_context_menu) {
                         // Handle Context Menu Clicks
                         int w = 150; int h = 100;
@@ -1796,16 +1824,21 @@ int main(int argc, char* argv[]) {
                                     selected_replay_index = (int)i;
                                     
                                     // Check if clicked on play button
-                                    int play_x = list_x + list_width - 40;
+                                    // Check Play Button (Left)
+                                    int play_x = list_x + 40;
                                     int play_y = item_y + item_height / 2;
                                     int dx = mx - play_x;
                                     int dy = my - play_y;
                                     
+                                    // Check Delete Button (Right)
+                                    int del_x = list_x + list_width - 40;
+                                    int del_y = item_y + item_height / 2;
+                                    int ddx = mx - del_x;
+                                    int ddy = my - del_y;
+
                                     if (dx*dx + dy*dy <= 20*20) {
                                         // Play button clicked - Load and play replay
                                         std::cout << "▶️ Play replay: " << replay_files[i].display_name << std::endl;
-                                        std::cout << "   File: " << replay_files[i].full_path << std::endl;
-                                        std::cout << "   Frames: " << replay_files[i].total_frames << std::endl;
                                         
                                         // Load replay file
                                         if (replay_player.load_replay(replay_files[i].full_path)) {
@@ -1830,9 +1863,6 @@ int main(int argc, char* argv[]) {
                                             bool rom_found = false;
                                             std::cout << "   Looking for ROM matching: '" << game_name_from_replay << "'" << std::endl;
                                             for (const auto& slot : slots) {
-                                                if (slot.occupied) {
-                                                    std::cout << "   Checking slot: '" << slot.name << "'" << std::endl;
-                                                }
                                                 // Try substring match (game name from replay should contain slot name or vice versa)
                                                 if (slot.occupied && (
                                                     game_name_from_replay.find(slot.name) != std::string::npos ||
@@ -1863,6 +1893,13 @@ int main(int argc, char* argv[]) {
                                                 std::cerr << "   Please make sure the ROM is loaded in a slot" << std::endl;
                                             }
                                         }
+                                    } else if (ddx*ddx + ddy*ddy <= 20*20) {
+                                        // Delete button clicked
+                                        delete_replay_index = (int)i;
+                                        showing_delete_replay_popup = true;
+                                    } else {
+                                        // Select item
+                                        selected_replay_index = (int)i;
                                     }
                                     break;
                                 }
@@ -2158,7 +2195,8 @@ int main(int argc, char* argv[]) {
                     font_body.draw_text(renderer, "Record gameplay to see replays here", cx - 140, cy + 10, {180, 180, 180, 255});
                 } else {
                     // Draw replay list
-                    for (size_t i = 0; i < replay_files.size(); i++) {
+                    size_t limit = std::min(replay_files.size(), (size_t)50);
+                    for (size_t i = 0; i < limit; i++) {
                         int item_y = list_start_y + i * (item_height + item_margin) - library_scroll_y;
                         
                         // Culling
@@ -2167,66 +2205,128 @@ int main(int argc, char* argv[]) {
                         SDL_Rect item_rect = {list_x, item_y, list_width, item_height};
                         
                         // Item background
-                        if (selected_replay_index == (int)i) {
-                            SDL_SetRenderDrawColor(renderer, 230, 240, 255, 255); // Light blue for selected
+                        bool is_selected = (selected_replay_index == (int)i);
+                        if (is_selected) {
+                            SDL_SetRenderDrawColor(renderer, 235, 245, 255, 255); // Light blue for selected
                         } else {
                             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White
                         }
                         SDL_RenderFillRect(renderer, &item_rect);
                         
                         // Item border
-                        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                        if (is_selected) {
+                            SDL_SetRenderDrawColor(renderer, 100, 180, 255, 255); // Blue border for selected
+                        } else {
+                            SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255); // Light gray
+                        }
                         SDL_RenderDrawRect(renderer, &item_rect);
+                        
+                        // Selection Accent Bar (Left)
+                        if (is_selected) {
+                            SDL_Rect accent = {list_x, item_y, 6, item_height};
+                            SDL_SetRenderDrawColor(renderer, 50, 150, 250, 255);
+                            SDL_RenderFillRect(renderer, &accent);
+                        }
+
+                        // Icon (Play Circle) - At the start (Left)
+                        int icon_x = list_x + 40;
+                        int icon_y = item_y + item_height / 2;
+                        int icon_r = 20;
+                        
+                        if (is_selected) {
+                            SDL_SetRenderDrawColor(renderer, 50, 150, 250, 255); // Blue icon
+                        } else {
+                            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Gray icon
+                        }
+                        draw_filled_circle(renderer, icon_x, icon_y, icon_r);
+                        
+                        // Play Triangle inside
+                        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                        int tr_x = icon_x + 2;
+                        int tr_y = icon_y;
+                        draw_filled_triangle(renderer, tr_x - 5, tr_y - 8, tr_x + 8, tr_y, tr_x - 5, tr_y + 8);
                         
                         // Draw replay info
                         const auto& replay = replay_files[i];
                         
                         // Title (Game name + date/time)
-                        font_body.draw_text(renderer, replay.display_name, list_x + 15, item_y + 15, {34, 43, 50, 255});
+                        int text_x = list_x + 80;
+                        int title_y = item_y + 20;
+                        SDL_Color title_color = is_selected ? SDL_Color{30, 30, 30, 255} : SDL_Color{50, 50, 50, 255};
+                        font_body.draw_text(renderer, replay.display_name, text_x, title_y, title_color);
                         
-                        // Duration (frames to time)
+                        // Metadata Row (Time Only)
+                        int meta_y = item_y + 50;
+                        SDL_Color meta_color = {120, 120, 120, 255};
+                        
+                        // Duration
                         float duration_seconds = replay.total_frames / 60.0f; // Assuming 60 FPS
                         int minutes = (int)(duration_seconds / 60);
                         int seconds = (int)duration_seconds % 60;
-                        std::stringstream duration_ss;
-                        duration_ss << "Duration: " << minutes << "m " << seconds << "s";
-                        font_small.draw_text(renderer, duration_ss.str(), list_x + 15, item_y + 40, {100, 100, 100, 255});
+                        std::stringstream meta_ss;
+                        meta_ss << "Time: " << minutes << "m " << seconds << "s";
                         
-                        // File size
-                        float size_kb = replay.file_size / 1024.0f;
-                        std::stringstream size_ss;
-                        size_ss << std::fixed << std::setprecision(1) << size_kb << " KB";
-                        font_small.draw_text(renderer, size_ss.str(), list_x + 200, item_y + 40, {100, 100, 100, 255});
+                        font_small.draw_text(renderer, meta_ss.str(), text_x, meta_y, meta_color);
                         
-                        // Frame count
-                        std::stringstream frames_ss;
-                        frames_ss << replay.total_frames << " frames";
-                        font_small.draw_text(renderer, frames_ss.str(), list_x + 320, item_y + 40, {100, 100, 100, 255});
+                        // Delete Button (Trash Icon) - At the end (Right)
+                        int del_x = list_x + list_width - 40;
+                        int del_y = item_y + item_height / 2;
                         
-                        // Play icon (right side)
-                        int play_x = list_x + list_width - 40;
-                        int play_y = item_y + item_height / 2;
-                        SDL_SetRenderDrawColor(renderer, 50, 150, 50, 255); // Green
-                        draw_filled_circle(renderer, play_x, play_y, 20);
+                        // Trash Can Body
+                        SDL_Rect bin = {del_x - 6, del_y - 6, 12, 14};
+                        SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255); // Reddish
+                        SDL_RenderFillRect(renderer, &bin);
                         
-                        // Play triangle
-                        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                        int tx1 = play_x - 6, ty1 = play_y - 8;
-                        int tx2 = play_x + 8, ty2 = play_y;
-                        int tx3 = play_x - 6, ty3 = play_y + 8;
-                        SDL_RenderDrawLine(renderer, tx1, ty1, tx2, ty2);
-                        SDL_RenderDrawLine(renderer, tx2, ty2, tx3, ty3);
-                        SDL_RenderDrawLine(renderer, tx3, ty3, tx1, ty1);
+                        // Lid
+                        SDL_Rect lid = {del_x - 8, del_y - 8, 16, 2};
+                        SDL_RenderFillRect(renderer, &lid);
+                        
+                        // Handle
+                        SDL_Rect handle = {del_x - 3, del_y - 10, 6, 2};
+                        SDL_RenderFillRect(renderer, &handle);
                     }
                 }
                 
-                // Refresh button (top right of panel)
-                int refresh_x = SCREEN_WIDTH * SCALE - 100;
-                int refresh_y = panel_content_y + 10;
-                SDL_Rect refresh_btn = {refresh_x, refresh_y, 80, 30};
-                SDL_SetRenderDrawColor(renderer, 100, 150, 200, 255);
-                SDL_RenderFillRect(renderer, &refresh_btn);
-                font_small.draw_text(renderer, "Refresh", refresh_x + 15, refresh_y + 8, {255, 255, 255, 255});
+                // (Refresh button removed)
+                
+                // Replay Delete Popup
+                if (showing_delete_replay_popup) {
+                    // Dim background
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+                    SDL_Rect dim = {0, 0, SCREEN_WIDTH * SCALE, SCREEN_HEIGHT * SCALE};
+                    SDL_RenderFillRect(renderer, &dim);
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                    
+                    int cx = (SCREEN_WIDTH * SCALE) / 2;
+                    int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                    int w = 400; int h = 200;
+                    SDL_Rect popup = {cx - w/2, cy - h/2, w, h};
+                    
+                    // Popup BG
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    SDL_RenderFillRect(renderer, &popup);
+                    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                    SDL_RenderDrawRect(renderer, &popup);
+                    
+                    // Text
+                    font_title.draw_text(renderer, "Delete Replay?", cx - 100, cy - 60, {34, 43, 50, 255});
+                    font_body.draw_text(renderer, "Are you sure you want to delete this replay?", cx - 160, cy - 10, {100, 100, 100, 255});
+                    
+                    // Buttons
+                    SDL_Rect btn_yes = {cx - 110, cy + 20, 100, 40};
+                    SDL_Rect btn_no = {cx + 10, cy + 20, 100, 40};
+                    
+                    // Yes (Red)
+                    SDL_SetRenderDrawColor(renderer, 220, 80, 80, 255);
+                    SDL_RenderFillRect(renderer, &btn_yes);
+                    font_body.draw_text(renderer, "Delete", cx - 90, cy + 28, {255, 255, 255, 255});
+                    
+                    // No (Gray)
+                    SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+                    SDL_RenderFillRect(renderer, &btn_no);
+                    font_body.draw_text(renderer, "Cancel", cx + 30, cy + 28, {255, 255, 255, 255});
+                }
                 
                 
             } else if (home_active_panel == HOME_PANEL_FAVORITES) {
