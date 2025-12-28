@@ -1551,7 +1551,7 @@ int main(int argc, char* argv[]) {
                     // Multiplayer Button Click
                     if (mx >= 15 && mx <= 115 && my >= 15 && my <= 45) {
                         current_scene = SCENE_MULTIPLAYER_LOBBY;
-                        discovery.start_advertising(config.get_device_id(), config.get_nickname(), "Menu", 6502);
+                        discovery.start_advertising(config.get_device_id(), config.get_nickname(), "Menu", "", 6502);
                     }
 
                     // Settings Button Click (Top Right Dots)
