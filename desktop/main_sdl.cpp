@@ -1247,6 +1247,9 @@ int main(int argc, char* argv[]) {
     
     SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (audio_device != 0) SDL_PauseAudioDevice(audio_device, 0);
+    
+    // Enable text input for text fields
+    SDL_StartTextInput();
 
     SDL_Window* window = SDL_CreateWindow("Game Enter NES", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH * SCALE, SCREEN_HEIGHT * SCALE, SDL_WINDOW_SHOWN);
     if (!window) return 1;
@@ -1352,6 +1355,13 @@ int main(int argc, char* argv[]) {
     int library_scroll_y = 0;
     int selected_replay_index = -1;
 
+    // Duo Panel State
+    std::string duo_selected_rom_path = "";
+    std::string duo_selected_rom_name = "";
+    std::string duo_host_name = "";
+    bool duo_rom_selector_open = false;
+    int duo_active_input_field = -1; // -1: none, 0: host name
+    
     // --- UI SETUP ---
     VirtualJoystick joystick;
     joystick.init(100, (SCREEN_HEIGHT * SCALE) - 100, 60);
@@ -1433,6 +1443,21 @@ int main(int argc, char* argv[]) {
                     if (it != connected_controllers.end()) {
                         connected_controllers.erase(it);
                         SDL_GameControllerClose(c);
+                    }
+                }
+            }
+            
+            // Text Input for Duo Panel
+            if (current_scene == SCENE_HOME && home_active_panel == HOME_PANEL_FAVORITES) {
+                if (duo_active_input_field == 0) { // Host name input active
+                    if (e.type == SDL_TEXTINPUT) {
+                        duo_host_name += e.text.text;
+                    } else if (e.type == SDL_KEYDOWN) {
+                        if (e.key.keysym.sym == SDLK_BACKSPACE && !duo_host_name.empty()) {
+                            duo_host_name.pop_back();
+                        } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_ESCAPE) {
+                            duo_active_input_field = -1; // Deactivate input
+                        }
                     }
                 }
             }
@@ -1909,8 +1934,89 @@ int main(int argc, char* argv[]) {
                                 }
                             }
                         }
+                    } else if (home_active_panel == HOME_PANEL_FAVORITES) {
+                        // Duo Panel Clicks
+                        int panel_content_y = 140;
+                        int content_x = 40;
+                        int content_width = SCREEN_WIDTH * SCALE - 80;
+                        
+                        if (duo_rom_selector_open) {
+                            // ROM Selector Dialog Clicks
+                            int dialog_w = 600;
+                            int dialog_h = 500;
+                            int dialog_x = (SCREEN_WIDTH * SCALE - dialog_w) / 2;
+                            int dialog_y = (SCREEN_HEIGHT * SCALE - dialog_h) / 2;
+                            
+                            // Close button
+                            SDL_Rect close_btn = {dialog_x + dialog_w - 80, dialog_y + 20, 60, 30};
+                            if (mx >= close_btn.x && mx <= close_btn.x + close_btn.w &&
+                                my >= close_btn.y && my <= close_btn.y + close_btn.h) {
+                                duo_rom_selector_open = false;
+                            } else {
+                                // ROM item clicks
+                                int list_y = dialog_y + 70;
+                                int item_h = 60;
+                                int item_count = 0;
+                                
+                                for (size_t i = 0; i < slots.size() && i < 6; i++) {
+                                    if (!slots[i].occupied) continue;
+                                    
+                                    SDL_Rect item = {dialog_x + 20, list_y, dialog_w - 40, item_h};
+                                    if (mx >= item.x && mx <= item.x + item.w &&
+                                        my >= item.y && my <= item.y + item.h) {
+                                        // Select this ROM
+                                        duo_selected_rom_path = slots[i].rom_path;
+                                        duo_selected_rom_name = slots[i].name;
+                                        duo_rom_selector_open = false;
+                                        std::cout << "✅ Selected ROM: " << duo_selected_rom_name << std::endl;
+                                        break;
+                                    }
+                                    
+                                    list_y += item_h + 10;
+                                    item_count++;
+                                }
+                            }
+                        } else {
+                            // Main Duo Panel Clicks
+                            int section_y = panel_content_y + 70; // After "CREATE HOST" title
+                            int box_padding = 20;
+                            int row_y = section_y + box_padding + 25; // First row after "Selected ROM:" label
+                            
+                            // Browse Button
+                            SDL_Rect browse_btn = {content_x + content_width - 90, row_y, 70, 35};
+                            if (mx >= browse_btn.x && mx <= browse_btn.x + browse_btn.w &&
+                                my >= browse_btn.y && my <= browse_btn.y + browse_btn.h) {
+                                duo_rom_selector_open = true;
+                                std::cout << "📁 Opening ROM selector..." << std::endl;
+                            }
+                            
+                            row_y += 75; // Move to host name row
+                            
+                            // Host Name Input Box
+                            SDL_Rect name_box = {content_x + box_padding, row_y, 300, 35};
+                            if (mx >= name_box.x && mx <= name_box.x + name_box.w &&
+                                my >= name_box.y && my <= name_box.y + name_box.h) {
+                                duo_active_input_field = 0;
+                                std::cout << "✏️ Activated host name input" << std::endl;
+                            } else {
+                                // Click outside - deactivate
+                                if (duo_active_input_field == 0) {
+                                    duo_active_input_field = -1;
+                                }
+                            }
+                            
+                            // Create Host Button
+                            bool can_create = !duo_selected_rom_path.empty() && !duo_host_name.empty();
+                            SDL_Rect create_btn = {content_x + content_width - 150, row_y, 130, 35};
+                            if (can_create && mx >= create_btn.x && mx <= create_btn.x + create_btn.w &&
+                                my >= create_btn.y && my <= create_btn.y + create_btn.h) {
+                                std::cout << "🎮 Creating host: " << duo_host_name << " | ROM: " << duo_selected_rom_name << std::endl;
+                                // TODO: Implement create host logic in Phase 2
+                            }
+                        }
                     }
                 }
+
                 
                 if (e.type == SDL_MOUSEBUTTONUP) {
                     if (!showing_delete_popup && !showing_context_menu && mouse_down_slot != -1) {
@@ -2335,12 +2441,172 @@ int main(int argc, char* argv[]) {
                 
                 
             } else if (home_active_panel == HOME_PANEL_FAVORITES) {
-                // --- DUO PANEL (Placeholder) ---
-                int cx = (SCREEN_WIDTH * SCALE) / 2;
-                int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                // --- DUO PANEL ---
+                int panel_content_y = 140; // Below tabs
+                int content_x = 40;
+                int content_width = SCREEN_WIDTH * SCALE - 80;
                 
-                font_title.draw_text(renderer, "Duo Mode", cx - 80, cy - 50, {100, 100, 100, 255});
-                font_body.draw_text(renderer, "Multiplayer features coming soon...", cx - 120, cy, {150, 150, 150, 255});
+                // === CREATE HOST SECTION ===
+                int section_y = panel_content_y + 20;
+                
+                // Section Title
+                font_title.draw_text(renderer, "CREATE HOST", content_x, section_y, {50, 50, 50, 255});
+                section_y += 50;
+                
+                // Container Box
+                SDL_Rect create_box = {content_x, section_y, content_width, 150};
+                SDL_SetRenderDrawColor(renderer, 250, 250, 250, 255);
+                SDL_RenderFillRect(renderer, &create_box);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                SDL_RenderDrawRect(renderer, &create_box);
+                
+                int box_padding = 20;
+                int row_y = section_y + box_padding;
+                
+                // Row 1: ROM Selector
+                font_body.draw_text(renderer, "Selected ROM:", content_x + box_padding, row_y, {80, 80, 80, 255});
+                row_y += 25;
+                
+                // ROM Display Box
+                SDL_Rect rom_box = {content_x + box_padding, row_y, content_width - 120, 35};
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderFillRect(renderer, &rom_box);
+                SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                SDL_RenderDrawRect(renderer, &rom_box);
+                
+                // ROM Name Text
+                std::string rom_display = duo_selected_rom_name.empty() ? "No ROM selected" : duo_selected_rom_name;
+                SDL_Color rom_text_color = duo_selected_rom_name.empty() ? SDL_Color{150, 150, 150, 255} : SDL_Color{50, 50, 50, 255};
+                font_body.draw_text(renderer, rom_display, content_x + box_padding + 10, row_y + 8, rom_text_color);
+                
+                // Browse Button (📁)
+                SDL_Rect browse_btn = {content_x + content_width - 90, row_y, 70, 35};
+                SDL_SetRenderDrawColor(renderer, 100, 150, 250, 255);
+                SDL_RenderFillRect(renderer, &browse_btn);
+                SDL_SetRenderDrawColor(renderer, 80, 130, 230, 255);
+                SDL_RenderDrawRect(renderer, &browse_btn);
+                font_body.draw_text(renderer, "Browse", browse_btn.x + 8, browse_btn.y + 8, {255, 255, 255, 255});
+                
+                row_y += 50;
+                
+                // Row 2: Host Name Input
+                font_body.draw_text(renderer, "Host Name:", content_x + box_padding, row_y, {80, 80, 80, 255});
+                row_y += 25;
+                
+                SDL_Rect name_box = {content_x + box_padding, row_y, 300, 35};
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderFillRect(renderer, &name_box);
+                
+                // Highlight if active
+                if (duo_active_input_field == 0) {
+                    SDL_SetRenderDrawColor(renderer, 100, 150, 250, 255);
+                } else {
+                    SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                }
+                SDL_RenderDrawRect(renderer, &name_box);
+                
+                // Host Name Text
+                std::string name_display = duo_host_name.empty() ? "" : duo_host_name;
+                font_body.draw_text(renderer, name_display, name_box.x + 10, name_box.y + 8, {50, 50, 50, 255});
+                
+                // Cursor if active
+                if (duo_active_input_field == 0) {
+                    float text_w = font_body.get_text_width(name_display);
+                    int cursor_x = name_box.x + 10 + (int)text_w;
+                    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                    SDL_RenderDrawLine(renderer, cursor_x, name_box.y + 8, cursor_x, name_box.y + 27);
+                }
+                
+                // Create Host Button
+                bool can_create = !duo_selected_rom_path.empty() && !duo_host_name.empty();
+                SDL_Rect create_btn = {content_x + content_width - 150, row_y, 130, 35};
+                
+                if (can_create) {
+                    SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
+                } else {
+                    SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                }
+                SDL_RenderFillRect(renderer, &create_btn);
+                
+                SDL_Color btn_text_color = can_create ? SDL_Color{255, 255, 255, 255} : SDL_Color{220, 220, 220, 255};
+                font_body.draw_text(renderer, "Create Host", create_btn.x + 15, create_btn.y + 8, btn_text_color);
+                
+                section_y += 170;
+                
+                // === AVAILABLE HOSTS SECTION ===
+                font_title.draw_text(renderer, "AVAILABLE HOSTS", content_x, section_y, {50, 50, 50, 255});
+                section_y += 50;
+                
+                // Placeholder for host list
+                SDL_Rect hosts_container = {content_x, section_y, content_width, 250};
+                SDL_SetRenderDrawColor(renderer, 250, 250, 250, 255);
+                SDL_RenderFillRect(renderer, &hosts_container);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                SDL_RenderDrawRect(renderer, &hosts_container);
+                
+                // Empty state message
+                int empty_cx = content_x + content_width / 2;
+                int empty_cy = section_y + 125;
+                font_body.draw_text(renderer, "No hosts found", empty_cx - 60, empty_cy - 10, {150, 150, 150, 255});
+                font_small.draw_text(renderer, "Searching for hosts on local network...", empty_cx - 110, empty_cy + 20, {180, 180, 180, 255});
+                
+                // ROM Selector Overlay
+                if (duo_rom_selector_open) {
+                    // Dim background
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+                    SDL_Rect dim = {0, 0, SCREEN_WIDTH * SCALE, SCREEN_HEIGHT * SCALE};
+                    SDL_RenderFillRect(renderer, &dim);
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                    
+                    // Selector Dialog
+                    int dialog_w = 600;
+                    int dialog_h = 500;
+                    int dialog_x = (SCREEN_WIDTH * SCALE - dialog_w) / 2;
+                    int dialog_y = (SCREEN_HEIGHT * SCALE - dialog_h) / 2;
+                    
+                    SDL_Rect dialog = {dialog_x, dialog_y, dialog_w, dialog_h};
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    SDL_RenderFillRect(renderer, &dialog);
+                    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+                    SDL_RenderDrawRect(renderer, &dialog);
+                    
+                    // Title
+                    font_title.draw_text(renderer, "Select ROM", dialog_x + 20, dialog_y + 20, {50, 50, 50, 255});
+                    
+                    // Close button
+                    SDL_Rect close_btn = {dialog_x + dialog_w - 80, dialog_y + 20, 60, 30};
+                    SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255);
+                    SDL_RenderFillRect(renderer, &close_btn);
+                    font_body.draw_text(renderer, "Close", close_btn.x + 10, close_btn.y + 5, {255, 255, 255, 255});
+                    
+                    // ROM List (from slots)
+                    int list_y = dialog_y + 70;
+                    int item_h = 60;
+                    
+                    for (size_t i = 0; i < slots.size() && i < 6; i++) {
+                        if (!slots[i].occupied) continue;
+                        
+                        SDL_Rect item = {dialog_x + 20, list_y, dialog_w - 40, item_h};
+                        SDL_SetRenderDrawColor(renderer, 245, 245, 245, 255);
+                        SDL_RenderFillRect(renderer, &item);
+                        SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
+                        SDL_RenderDrawRect(renderer, &item);
+                        
+                        // ROM Name
+                        font_body.draw_text(renderer, slots[i].name, item.x + 10, item.y + 10, {50, 50, 50, 255});
+                        
+                        // Path (truncated)
+                        std::string path_display = slots[i].rom_path;
+                        if (path_display.length() > 50) {
+                            path_display = "..." + path_display.substr(path_display.length() - 47);
+                        }
+                        font_small.draw_text(renderer, path_display, item.x + 10, item.y + 35, {120, 120, 120, 255});
+                        
+                        list_y += item_h + 10;
+                    }
+                }
+
             } else if (home_active_panel == HOME_PANEL_TOURNAMENT) {
                 // --- TOURNAMENT PANEL (Placeholder) ---
                 int cx = (SCREEN_WIDTH * SCALE) / 2;
