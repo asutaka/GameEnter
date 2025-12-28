@@ -649,6 +649,15 @@ void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joyst
 
 enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_MULTIPLAYER_LOBBY };
 
+// Home Screen Panels
+enum HomePanel { 
+    HOME_PANEL_ROM_GRID = 0,  // Default panel showing ROM grid
+    HOME_PANEL_LIBRARY = 1,   // Future: Library view
+    HOME_PANEL_FAVORITES = 2  // Future: Favorites
+};
+
+int home_active_panel = HOME_PANEL_ROM_GRID; // Track current active panel
+
 // QuickBall Class
 struct QuickBall {
     int x, y, r;
@@ -896,6 +905,14 @@ std::string import_avatar_image(const std::string& source_path, const std::strin
     }
 }
 
+// Forward declarations for panel functions
+struct Slot; // Forward declare Slot struct
+void render_rom_grid_panel(SDL_Renderer* renderer, std::vector<Slot>& slots, int scroll_y, FontSystem& font_body);
+void handle_rom_grid_events(const SDL_Event& e, std::vector<Slot>& slots, int& scroll_y, int& mouse_down_slot, 
+                            bool& showing_delete_popup, bool& showing_context_menu, int& delete_candidate_index,
+                            int& context_menu_slot, int& menu_x, int& menu_y, SDL_Renderer* renderer, 
+                            const std::string& slots_file, Emulator& emu, Scene& current_scene, ConfigManager& config, Recorder& recorder);
+
 int main(int argc, char* argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0) {
         std::cerr << "SDL Init Failed: " << SDL_GetError() << std::endl;
@@ -1101,8 +1118,8 @@ int main(int argc, char* argv[]) {
 
             // Home Screen Interactions
             if (current_scene == SCENE_HOME) {
-                // Scrolling
-                if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup && !showing_context_menu) {
+                // Scrolling (only for ROM Grid panel)
+                if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup && !showing_context_menu && home_active_panel == HOME_PANEL_ROM_GRID) {
                     scroll_y -= e.wheel.y * scroll_speed;
                     if (scroll_y < 0) scroll_y = 0;
                     
@@ -1136,6 +1153,27 @@ int main(int argc, char* argv[]) {
                         settings_avatar_path = config.get_avatar_path();
                         settings_recorder_enabled = config.get_gameplay_recorder_enabled();
                         settings_loaded = true;
+                    }
+
+                    // Panel Tab Clicks
+                    int tab_y = 100;
+                    int tab_h = 40;
+                    int tab_w = 150;
+                    int tab_gap = 10;
+                    int tab_start_x = 20;
+                    
+                    // Check if clicked on any tab
+                    if (my >= tab_y && my <= tab_y + tab_h) {
+                        if (mx >= tab_start_x && mx <= tab_start_x + tab_w) {
+                            // ROM Grid tab
+                            home_active_panel = HOME_PANEL_ROM_GRID;
+                        } else if (mx >= tab_start_x + tab_w + tab_gap && mx <= tab_start_x + 2 * tab_w + tab_gap) {
+                            // Library tab
+                            home_active_panel = HOME_PANEL_LIBRARY;
+                        } else if (mx >= tab_start_x + 2 * (tab_w + tab_gap) && mx <= tab_start_x + 3 * tab_w + 2 * tab_gap) {
+                            // Favorites tab
+                            home_active_panel = HOME_PANEL_FAVORITES;
+                        }
                     }
 
                     if (showing_delete_popup) {
@@ -1268,15 +1306,15 @@ int main(int argc, char* argv[]) {
                         else {
                             showing_context_menu = false;
                         }
-                    } else {
-                        // Grid Clicks
+                    } else if (home_active_panel == HOME_PANEL_ROM_GRID) {
+                        // Grid Clicks (only for ROM Grid panel)
                         int adj_my = my + scroll_y;
                         int slot_w = 200;
                         int slot_h = 250;
                         int gap = 20;
                         int cols = 3;
                         int start_x = (SCREEN_WIDTH * SCALE - (cols*slot_w + (cols-1)*gap)) / 2;
-                        int start_y = 150;
+                        int start_y = 150; // Match the panel_content_y + 10 from rendering
 
                         // Find Add Button Index
                         int add_btn_index = -1;
@@ -1452,112 +1490,180 @@ int main(int argc, char* argv[]) {
         SDL_RenderClear(renderer);
 
         if (current_scene == SCENE_HOME) {
-            // --- GRID ---
-            int slot_w = 200;
-            int slot_h = 250;
-            int gap = 20;
-            int cols = 3;
-            int start_x = (SCREEN_WIDTH * SCALE - (cols*slot_w + (cols-1)*gap)) / 2;
-            int start_y = 150;
-
-            // Find first empty slot for Add Button
-            int add_btn_index = -1;
-            for (size_t k = 0; k < slots.size(); ++k) {
-                if (!slots[k].occupied) {
-                    add_btn_index = (int)k;
-                    break;
+            // --- PANEL CONTAINER ---
+            // Panel tabs (below header)
+            int tab_y = 100;
+            int tab_h = 40;
+            int tab_w = 150;
+            int tab_gap = 10;
+            int tab_start_x = 20;
+            
+            // Define tabs
+            struct PanelTab {
+                std::string label;
+                HomePanel panel_id;
+            };
+            std::vector<PanelTab> tabs = {
+                {"ROM Grid", HOME_PANEL_ROM_GRID},
+                {"Library", HOME_PANEL_LIBRARY},
+                {"Favorites", HOME_PANEL_FAVORITES}
+            };
+            
+            // Draw tabs
+            for (size_t i = 0; i < tabs.size(); i++) {
+                int tx = tab_start_x + i * (tab_w + tab_gap);
+                SDL_Rect tab_rect = {tx, tab_y, tab_w, tab_h};
+                
+                // Tab background
+                if (home_active_panel == tabs[i].panel_id) {
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // Active: White
+                } else {
+                    SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255); // Inactive: Light gray
                 }
+                SDL_RenderFillRect(renderer, &tab_rect);
+                
+                // Tab border
+                SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                SDL_RenderDrawRect(renderer, &tab_rect);
+                
+                // Tab label
+                float label_w = font_body.get_text_width(tabs[i].label);
+                int label_x = tx + (tab_w - (int)label_w) / 2;
+                int label_y = tab_y + (tab_h - 18) / 2;
+                
+                SDL_Color text_color = (home_active_panel == tabs[i].panel_id) 
+                    ? SDL_Color{34, 43, 50, 255}    // Active: Dark
+                    : SDL_Color{120, 120, 120, 255}; // Inactive: Gray
+                font_body.draw_text(renderer, tabs[i].label, label_x, label_y, text_color);
             }
+            
+            // Panel content area
+            int panel_content_y = tab_y + tab_h;
+            
+            // Render active panel content
+            if (home_active_panel == HOME_PANEL_ROM_GRID) {
+                // --- ROM GRID PANEL ---
+                int slot_w = 200;
+                int slot_h = 250;
+                int gap = 20;
+                int cols = 3;
+                int start_x = (SCREEN_WIDTH * SCALE - (cols*slot_w + (cols-1)*gap)) / 2;
+                int start_y = panel_content_y + 10; // Start below tabs
 
-            for (size_t i=0; i<slots.size(); i++) {
-                int col = i % cols;
-                int row = (int)i / cols;
-                
-                int sx = start_x + col * (slot_w + gap);
-                int sy = start_y + row * (slot_h + gap) - scroll_y;
-                
-                // Culling
-                if (sy + slot_h < 0 || sy > SCREEN_HEIGHT * SCALE) continue;
-
-                SDL_Rect r = {sx, sy, slot_w, slot_h};
-                
-                // Card BG
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                SDL_RenderFillRect(renderer, &r);
-                
-                if (i == add_btn_index) {
-                    // --- Add Button ---
-                    int cx = sx + slot_w/2;
-                    int cy = sy + slot_h/2 - 20;
-                    SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
-                    draw_filled_circle(renderer, cx, cy, 40);
-                    
-                    // Plus Sign
-                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
-                    SDL_Rect rv = {cx - 3, cy - 20, 6, 40};
-                    SDL_Rect rh = {cx - 20, cy - 3, 40, 6};
-                    SDL_RenderFillRect(renderer, &rv);
-                    SDL_RenderFillRect(renderer, &rh);
-
-                    font_body.draw_text(renderer, "Add ROM", sx + 60, sy + slot_h - 40, {34, 43, 50, 255});
-
-                } else if (slots[i].occupied) {
-                    // --- Occupied Slot ---
-                    
-                    if (slots[i].cover_texture) {
-                        // Draw Cover Image with Aspect Ratio & Style
-                        int img_w, img_h;
-                        SDL_QueryTexture(slots[i].cover_texture, NULL, NULL, &img_w, &img_h);
-
-                        int max_w = slot_w - 20;
-                        int max_h = slot_h - 60;
-                        
-                        float scale_w = (float)max_w / img_w;
-                        float scale_h = (float)max_h / img_h;
-                        float scale = (scale_w < scale_h) ? scale_w : scale_h;
-                        int final_w = (int)(img_w * scale);
-                        int final_h = (int)(img_h * scale);
-
-                        int img_x = sx + (slot_w - final_w) / 2;
-                        int img_y = sy + 10 + (max_h - final_h) / 2; // Center vertically in the image area
-                        
-                        SDL_Rect dst = {img_x, img_y, final_w, final_h};
-
-                        // 1. Drop Shadow
-                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 50); // Soft shadow
-                        SDL_Rect shadow = {img_x + 4, img_y + 4, final_w, final_h};
-                        SDL_RenderFillRect(renderer, &shadow);
-                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-
-                        // 2. Image
-                        SDL_RenderCopy(renderer, slots[i].cover_texture, NULL, &dst);
-
-                        // 3. Border
-                        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Light grey border
-                        SDL_RenderDrawRect(renderer, &dst);
-                    } else {
-                        // Draw Default Cartridge Icon
-                        draw_nes_cartridge(renderer, sx + slot_w/2, sy + slot_h/2 - 20, 8);
+                // Find first empty slot for Add Button
+                int add_btn_index = -1;
+                for (size_t k = 0; k < slots.size(); ++k) {
+                    if (!slots[k].occupied) {
+                        add_btn_index = (int)k;
+                        break;
                     }
+                }
 
-                    // Draw Name at bottom
-                    std::string display_name = slots[i].name;
-                    if (display_name.length() > 18) display_name = display_name.substr(0, 15) + "...";
+                for (size_t i=0; i<slots.size(); i++) {
+                    int col = i % cols;
+                    int row = (int)i / cols;
                     
-                    float text_w = font_body.get_text_width(display_name);
-                    int tx = sx + (slot_w - (int)text_w) / 2;
+                    int sx = start_x + col * (slot_w + gap);
+                    int sy = start_y + row * (slot_h + gap) - scroll_y;
                     
-                    font_body.draw_text(renderer, display_name, tx, sy + slot_h - 40, {34, 43, 50, 255});
+                    // Culling
+                    if (sy + slot_h < 0 || sy > SCREEN_HEIGHT * SCALE) continue;
 
-                    // Draw 3 Dots Menu Icon (Top Right)
+                    SDL_Rect r = {sx, sy, slot_w, slot_h};
+                    
+                    // Card BG
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    SDL_RenderFillRect(renderer, &r);
+                    
+                    if (i == add_btn_index) {
+                        // --- Add Button ---
+                        int cx = sx + slot_w/2;
+                        int cy = sy + slot_h/2 - 20;
+                        SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
+                        draw_filled_circle(renderer, cx, cy, 40);
+                        
+                        // Plus Sign
+                        SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+                        SDL_Rect rv = {cx - 3, cy - 20, 6, 40};
+                        SDL_Rect rh = {cx - 20, cy - 3, 40, 6};
+                        SDL_RenderFillRect(renderer, &rv);
+                        SDL_RenderFillRect(renderer, &rh);
+
+                        font_body.draw_text(renderer, "Add ROM", sx + 60, sy + slot_h - 40, {34, 43, 50, 255});
+
+                    } else if (slots[i].occupied) {
+                        // --- Occupied Slot ---
+                        
+                        if (slots[i].cover_texture) {
+                            // Draw Cover Image with Aspect Ratio & Style
+                            int img_w, img_h;
+                            SDL_QueryTexture(slots[i].cover_texture, NULL, NULL, &img_w, &img_h);
+
+                            int max_w = slot_w - 20;
+                            int max_h = slot_h - 60;
+                            
+                            float scale_w = (float)max_w / img_w;
+                            float scale_h = (float)max_h / img_h;
+                            float scale = (scale_w < scale_h) ? scale_w : scale_h;
+                            int final_w = (int)(img_w * scale);
+                            int final_h = (int)(img_h * scale);
+
+                            int img_x = sx + (slot_w - final_w) / 2;
+                            int img_y = sy + 10 + (max_h - final_h) / 2; // Center vertically in the image area
+                            
+                            SDL_Rect dst = {img_x, img_y, final_w, final_h};
+
+                            // 1. Drop Shadow
+                            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 50); // Soft shadow
+                            SDL_Rect shadow = {img_x + 4, img_y + 4, final_w, final_h};
+                            SDL_RenderFillRect(renderer, &shadow);
+                            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+                            // 2. Image
+                            SDL_RenderCopy(renderer, slots[i].cover_texture, NULL, &dst);
+
+                            // 3. Border
+                            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Light grey border
+                            SDL_RenderDrawRect(renderer, &dst);
+                        } else {
+                            // Draw Default Cartridge Icon
+                            draw_nes_cartridge(renderer, sx + slot_w/2, sy + slot_h/2 - 20, 8);
+                        }
+
+                        // Draw Name at bottom
+                        std::string display_name = slots[i].name;
+                        if (display_name.length() > 18) display_name = display_name.substr(0, 15) + "...";
+                        
+                        float text_w = font_body.get_text_width(display_name);
+                        int tx = sx + (slot_w - (int)text_w) / 2;
+                        
+                        font_body.draw_text(renderer, display_name, tx, sy + slot_h - 40, {34, 43, 50, 255});
+
+                        // Draw 3 Dots Menu Icon (Top Right)
                     int dx = sx + slot_w - 20;
                     int dy = sy + 25;
                     SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-                    draw_filled_circle(renderer, dx, dy - 6, 3);
-                    draw_filled_circle(renderer, dx, dy, 3);
-                    draw_filled_circle(renderer, dx, dy + 6, 3);
+                        draw_filled_circle(renderer, dx, dy - 6, 3);
+                        draw_filled_circle(renderer, dx, dy, 3);
+                        draw_filled_circle(renderer, dx, dy + 6, 3);
+                    }
                 }
+            } else if (home_active_panel == HOME_PANEL_LIBRARY) {
+                // --- LIBRARY PANEL (Placeholder) ---
+                int cx = (SCREEN_WIDTH * SCALE) / 2;
+                int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                
+                font_title.draw_text(renderer, "Library View", cx - 100, cy - 50, {100, 100, 100, 255});
+                font_body.draw_text(renderer, "Coming Soon...", cx - 70, cy, {150, 150, 150, 255});
+                
+            } else if (home_active_panel == HOME_PANEL_FAVORITES) {
+                // --- FAVORITES PANEL (Placeholder) ---
+                int cx = (SCREEN_WIDTH * SCALE) / 2;
+                int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                
+                font_title.draw_text(renderer, "Favorites", cx - 80, cy - 50, {100, 100, 100, 255});
+                font_body.draw_text(renderer, "Coming Soon...", cx - 70, cy, {150, 150, 150, 255});
             }
 
             // --- HEADER (Draw last to be on top of scrolling content) ---

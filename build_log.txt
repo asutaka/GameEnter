@@ -4,34 +4,109 @@ MSBuild version 17.14.23+b0019275e for .NET Framework
   SDL2main.vcxproj -> E:\Data\GameEnter\build\_deps\sdl2-build\Debug\SDL2maind.lib
   nes_core.vcxproj -> E:\Data\GameEnter\build\Debug\nes_core.lib
   main_sdl.cpp
-E:\Data\GameEnter\desktop\main_sdl.cpp(606,89): warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(657,51): error C2065: 'box': undeclared identifier [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(985,38): warning C4456: declaration of 'buffer' hides previous local declaration [E:\Data\GameEnter\build\nes_app.vcxproj]
-      E:\Data\GameEnter\desktop\main_sdl.cpp(784,10):
+E:\Data\GameEnter\desktop\main_sdl.cpp(127,72): warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(730,93): warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1240,38): warning C4456: declaration of 'buffer' hides previous local declaration [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\desktop\main_sdl.cpp(1005,10):
       see declaration of 'buffer'
   
-E:\Data\GameEnter\desktop\main_sdl.cpp(1272,83): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1272,65): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1321,81): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1321,65): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1380,84): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1380,71): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1387,84): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1387,71): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1394,78): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1394,65): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1419,66): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1426,77): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1426,63): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1432,75): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1432,61): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1445,68): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1453,74): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1456,74): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1464,79): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1467,74): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1475,80): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1478,67): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1482,76): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(1509,99): warning C4267: 'argument': conversion from 'size_t' to 'Uint32', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
-E:\Data\GameEnter\desktop\main_sdl.cpp(981,60): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1385,41): warning C4456: declaration of 'dots_x' hides previous local declaration [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\desktop\main_sdl.cpp(1185,25):
+      see declaration of 'dots_x'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1386,41): warning C4456: declaration of 'dots_y' hides previous local declaration [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\desktop\main_sdl.cpp(1186,25):
+      see declaration of 'dots_y'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1580,87): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1580,69): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1627,107): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1236,60): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(973,18): warning C4189: 'texture': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1083,9): warning C4189: 'offset': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1081,9): warning C4189: 'base_x': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1084,9): warning C4189: 'bottom_y': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1085,9): warning C4189: 'center_x': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1080,9): warning C4189: 'btn_radius': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1082,9): warning C4189: 'base_y': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1199,29): warning C4189: 'bw': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1199,43): warning C4189: 'bh': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1231,42): warning C4189: 'h': local variable is initialized but not referenced [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1636,11): error C2059: syntax error: 'else' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1636,53): error C2143: syntax error: missing ';' before '{' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1636,53): error C2447: '{': missing function header (old-style formal list?) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1691,11): error C2059: syntax error: 'else' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1691,62): error C2143: syntax error: missing ';' before '{' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1691,62): error C2447: '{': missing function header (old-style formal list?) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1715,11): error C2059: syntax error: 'else' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1715,16): error C2143: syntax error: missing ';' before '{' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1715,16): error C2447: '{': missing function header (old-style formal list?) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1799,29): error C2065: 'slots': undeclared identifier [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1799,5): error C2059: syntax error: 'for' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1799,34): error C2059: syntax error: ')' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1799,29): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1800,9): error C2059: syntax error: 'if' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1800,28): error C2143: syntax error: missing ';' before '{' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1800,28): error C2447: '{': missing function header (old-style formal list?) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1803,5): error C2059: syntax error: '}' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1803,5): error C2143: syntax error: missing ';' before '}' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1806,5): error C3927: '->': trailing return type is not allowed after a non-function declarator [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1806,15): error C3484: syntax error: expected '->' before the return type [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1806,16): error C3613: missing return type after '->' ('int' assumed) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1806,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1806,16): error C2146: syntax error: missing ';' before identifier 'cleanup' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1807,5): error C3927: '->': trailing return type is not allowed after a non-function declarator [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1807,14): error C3484: syntax error: expected '->' before the return type [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1807,15): error C3613: missing return type after '->' ('int' assumed) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1807,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1807,15): error C2146: syntax error: missing ';' before identifier 'cleanup' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1808,5): error C3927: '->': trailing return type is not allowed after a non-function declarator [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1808,15): error C3484: syntax error: expected '->' before the return type [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1808,16): error C3613: missing return type after '->' ('int' assumed) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1808,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1808,16): error C2146: syntax error: missing ';' before identifier 'cleanup' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1809,19): error C2065: 'connected_controllers': undeclared identifier [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1809,5): error C2059: syntax error: 'for' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1809,40): error C2059: syntax error: ')' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1809,19): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1809,42): error C2146: syntax error: missing ';' before identifier 'SDL_GameControllerClose' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1810,24): error C2065: 'texture': undeclared identifier [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1810,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1810,5): error C2365: 'SDL_DestroyTexture': redefinition; previous definition was 'function' [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\build\_deps\sdl2-build\include\SDL2\SDL_render.h(1768,30):
+      see declaration of 'SDL_DestroyTexture'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1811,25): error C2065: 'renderer': undeclared identifier [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1811,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1811,5): error C2365: 'SDL_DestroyRenderer': redefinition; previous definition was 'function' [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\build\_deps\sdl2-build\include\SDL2\SDL_render.h(1782,30):
+      see declaration of 'SDL_DestroyRenderer'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1812,23): error C2065: 'window': undeclared identifier [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1812,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1812,5): error C2365: 'SDL_DestroyWindow': redefinition; previous definition was 'function' [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\build\_deps\sdl2-build\include\SDL2\SDL_video.h(1805,30):
+      see declaration of 'SDL_DestroyWindow'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1813,5): error C2059: syntax error: 'if' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1814,5): error C3927: '->': trailing return type is not allowed after a non-function declarator [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1814,14): error C3484: syntax error: expected '->' before the return type [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1814,15): error C3613: missing return type after '->' ('int' assumed) [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1814,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1814,5): error C2371: 'discovery': redefinition; different basic types [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\desktop\main_sdl.cpp(40,18):
+      see declaration of 'discovery'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1814,15): error C2146: syntax error: missing ';' before identifier 'shutdown' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1815,5): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1815,5): error C2556: 'int SDL_Quit(void)': overloaded function differs only by return type from 'void SDL_Quit(void)' [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\build\_deps\sdl2-build\include\SDL2\SDL.h(223,30):
+      see declaration of 'SDL_Quit'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1815,5): error C2371: 'SDL_Quit': redefinition; different basic types [E:\Data\GameEnter\build\nes_app.vcxproj]
+      E:\Data\GameEnter\build\_deps\sdl2-build\include\SDL2\SDL.h(223,30):
+      see declaration of 'SDL_Quit'
+  
+E:\Data\GameEnter\desktop\main_sdl.cpp(1817,5): error C2059: syntax error: 'return' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1818,1): error C2059: syntax error: '}' [E:\Data\GameEnter\build\nes_app.vcxproj]
+E:\Data\GameEnter\desktop\main_sdl.cpp(1818,1): error C2143: syntax error: missing ';' before '}' [E:\Data\GameEnter\build\nes_app.vcxproj]
