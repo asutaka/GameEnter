@@ -39,6 +39,12 @@ bool NetworkDiscovery::init() {
         return false;
     }
 
+    // Enable address reuse (allows multiple instances on same machine)
+    int reuse = 1;
+    if (setsockopt(udp_socket_, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) < 0) {
+        std::cerr << "Failed to enable SO_REUSEADDR" << std::endl;
+    }
+
     // Enable Broadcast
     int broadcast = 1;
     if (setsockopt(udp_socket_, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast)) < 0) {
