@@ -197,6 +197,7 @@ public:
     }
     
     float playback_speed = 1.0f;
+    float speed_accumulator = 0.0f;
 
     void set_speed(float speed) {
         playback_speed = speed;
@@ -215,6 +216,7 @@ public:
         replay_finished = false;
         current_frame_index = 0;
         playback_speed = 1.0f;
+        speed_accumulator = 0.0f;
         std::cout << "[ReplayPlayer] Started playback" << std::endl;
     }
     
@@ -222,6 +224,7 @@ public:
         is_playing = false;
         current_frame_index = 0;
         playback_speed = 1.0f;
+        speed_accumulator = 0.0f;
         std::cout << "[ReplayPlayer] Stopped playback" << std::endl;
     }
 
@@ -2426,13 +2429,12 @@ int main(int argc, char* argv[]) {
             // Handle Playback Speed Logic
             if (replay_player.is_playing) {
                 float speed = replay_player.playback_speed;
-                static float speed_accumulator = 0.0f;
-                speed_accumulator += speed;
+                replay_player.speed_accumulator += speed;
                 
                 int frames_to_run = 0;
-                while (speed_accumulator >= 1.0f) {
+                while (replay_player.speed_accumulator >= 1.0f) {
                     frames_to_run++;
-                    speed_accumulator -= 1.0f;
+                    replay_player.speed_accumulator -= 1.0f;
                 }
                 
                 for (int k = 0; k < frames_to_run; k++) {
@@ -2446,15 +2448,16 @@ int main(int argc, char* argv[]) {
                 }
             } else {
                 // Normal gameplay or Paused Replay
-                handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
-
                 // Check if we are in "Paused Replay" mode
                 // If frames are loaded but not playing, it's a paused replay.
                 bool is_replay_paused = !replay_player.frames.empty();
                 
                 if (!is_replay_paused) {
+                     // Normal Game: Handle Input & Run Frame
+                     handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
                      emu.run_frame();
                 }
+                // If Paused Replay: Do nothing (freeze state)
             }
             
             const uint8_t* framebuffer = emu.get_framebuffer();
