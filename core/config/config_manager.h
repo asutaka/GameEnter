@@ -21,11 +21,13 @@ public:
     std::string get_device_id() const;
     std::string get_nickname() const;
     std::string get_avatar_path() const;
+    bool get_gameplay_recorder_enabled() const;
 
     // Setters
     void set_device_id(const std::string& value);
     void set_nickname(const std::string& value);
     void set_avatar_path(const std::string& value);
+    void set_gameplay_recorder_enabled(bool value);
 
 private:
     std::string generate_uuid();
@@ -37,6 +39,7 @@ private:
     std::string device_id_;
     std::string nickname_;
     std::string avatar_path_;
+    bool gameplay_recorder_enabled_ = false;
 };
 
 }

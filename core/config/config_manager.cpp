@@ -52,7 +52,8 @@ void ConfigManager::save() {
         file << "device_id=" << device_id_ << "\n";
         file << "nickname=" << nickname_ << "\n";
         file << "avatar_path=" << avatar_path_ << "\n";
-        std::cout << "[Config] Saved to " << config_file_ << ": " << nickname_ << ", " << avatar_path_ << std::endl;
+        file << "gameplay_recorder_enabled=" << (gameplay_recorder_enabled_ ? "1" : "0") << "\n";
+        std::cout << "[Config] Saved to " << config_file_ << ": " << nickname_ << ", " << avatar_path_ << ", Recorder: " << gameplay_recorder_enabled_ << std::endl;
     } else {
         std::cerr << "[Config] Failed to open file for writing: " << config_file_ << std::endl;
     }
@@ -75,6 +76,7 @@ void ConfigManager::parse_line(const std::string& line) {
         if (key == "device_id") device_id_ = value;
         else if (key == "nickname") nickname_ = value;
         else if (key == "avatar_path") avatar_path_ = value;
+        else if (key == "gameplay_recorder_enabled") gameplay_recorder_enabled_ = (value == "1" || value == "true");
     }
 }
 
@@ -96,10 +98,12 @@ std::string ConfigManager::generate_uuid() {
 std::string ConfigManager::get_device_id() const { return device_id_; }
 std::string ConfigManager::get_nickname() const { return nickname_; }
 std::string ConfigManager::get_avatar_path() const { return avatar_path_; }
+bool ConfigManager::get_gameplay_recorder_enabled() const { return gameplay_recorder_enabled_; }
 
 // Setters
 void ConfigManager::set_device_id(const std::string& value) { device_id_ = value; }
 void ConfigManager::set_nickname(const std::string& value) { nickname_ = value; }
 void ConfigManager::set_avatar_path(const std::string& value) { avatar_path_ = value; }
+void ConfigManager::set_gameplay_recorder_enabled(bool value) { gameplay_recorder_enabled_ = value; }
 
 }

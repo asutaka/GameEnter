@@ -52,12 +52,94 @@ double timer_final_value = 0.0;
 std::string settings_nickname;
 std::string settings_avatar_path;
 bool settings_loaded = false;
+bool settings_recorder_enabled = false;
 int active_input_field = -1; // 0: Nickname
 
 // Screen dimensions
 const int SCREEN_WIDTH = 256;
 const int SCREEN_HEIGHT = 240;
 const int SCALE = 3; // 3x scale = 768x720
+
+// --- Recorder System ---
+struct ReplayFrame {
+    uint8_t p1_buttons;
+    uint8_t p2_buttons;
+};
+
+struct ReplayHeader {
+    char signature[4] = {'N', 'E', 'S', 'R'}; // NES Replay
+    uint32_t version = 1;
+    uint32_t total_frames;
+    char rom_hash[32]; // Placeholder for ROM hash
+};
+
+class Recorder {
+public:
+    bool is_recording = false;
+    std::vector<ReplayFrame> frames;
+    std::string current_rom_name;
+
+    void start_recording(const std::string& rom_name) {
+        is_recording = true;
+        frames.clear();
+        current_rom_name = rom_name;
+        std::cout << "[Recorder] Started recording for: " << rom_name << std::endl;
+    }
+
+    void record_frame(uint8_t p1, uint8_t p2) {
+        if (!is_recording) return;
+        frames.push_back({p1, p2});
+    }
+
+    void stop_recording() {
+        if (!is_recording) return;
+        is_recording = false;
+        save_to_file();
+        std::cout << "[Recorder] Stopped recording. Total frames: " << frames.size() << std::endl;
+    }
+
+    void save_to_file() {
+        if (frames.empty()) return;
+
+        // Ensure 'saves' directory exists
+        if (!fs::exists("saves")) {
+            fs::create_directory("saves");
+        }
+
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss_name;
+        
+        // Sanitize ROM name
+        std::string safe_name = current_rom_name;
+        std::replace(safe_name.begin(), safe_name.end(), ' ', '_');
+        std::replace(safe_name.begin(), safe_name.end(), '.', '_');
+        std::replace(safe_name.begin(), safe_name.end(), '/', '_');
+        std::replace(safe_name.begin(), safe_name.end(), '\\', '_');
+
+        ss_name << "saves/replay_" << safe_name << "_" << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".rpl";
+        std::string filename = ss_name.str();
+
+        std::ofstream outfile(filename, std::ios::binary);
+        if (!outfile) {
+            std::cerr << "[Recorder] Failed to open file for saving: " << filename << std::endl;
+            return;
+        }
+
+        ReplayHeader header;
+        header.total_frames = (uint32_t)frames.size();
+        // TODO: Calculate actual ROM hash
+        memset(header.rom_hash, 0, 32); 
+        
+        outfile.write((char*)&header, sizeof(header));
+        outfile.write((char*)frames.data(), frames.size() * sizeof(ReplayFrame));
+        outfile.close();
+        
+        std::cout << "[Recorder] Saved replay to: " << filename << std::endl;
+    }
+};
+
+Recorder recorder;
 
 // --- Font System (stb_truetype) ---
 struct FontSystem {
@@ -552,6 +634,9 @@ void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joyst
     }
 
     emu.set_controller(1, p2_buttons);
+    
+    // Record Inputs
+    recorder.record_frame(p1_buttons, p2_buttons);
 }
 
 enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_MULTIPLAYER_LOBBY };
@@ -617,8 +702,14 @@ struct QuickBall {
                                  std::cout << "[QuickBall] Snapshot saved: " << ss_name.str() << std::endl;
                              }
                         } else if (item.id == 2) { // Reset
+                            recorder.stop_recording(); // Stop previous recording
                             emu.reset();
+                            // Restart recording if enabled
+                            if (config.get_gameplay_recorder_enabled()) {
+                                recorder.start_recording(recorder.current_rom_name);
+                            }
                         } else if (item.id == 3) { // Home
+                            recorder.stop_recording();
                             scene = SCENE_HOME;
                         } else if (item.id == 4) { // Timer
                             if (!timer_running) {
@@ -959,10 +1050,19 @@ int main(int argc, char* argv[]) {
         }
 
         while (SDL_PollEvent(&e) != 0) {
-            if (e.type == SDL_QUIT) quit = true;
+            if (e.type == SDL_QUIT) {
+                recorder.stop_recording();
+                quit = true;
+            }
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
-                if (current_scene == SCENE_GAME) current_scene = SCENE_HOME;
-                else quit = true;
+                if (current_scene == SCENE_GAME) {
+                    recorder.stop_recording();
+                    current_scene = SCENE_HOME;
+                }
+                else {
+                    recorder.stop_recording();
+                    quit = true;
+                }
             }
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_r && current_scene == SCENE_GAME) emu.reset();
             
@@ -1026,6 +1126,7 @@ int main(int argc, char* argv[]) {
                         current_scene = SCENE_SETTINGS;
                         settings_nickname = config.get_nickname();
                         settings_avatar_path = config.get_avatar_path();
+                        settings_recorder_enabled = config.get_gameplay_recorder_enabled();
                         settings_loaded = true;
                     }
 
@@ -1255,6 +1356,13 @@ int main(int argc, char* argv[]) {
                                 emu.memory_.write(0x2007, 0x0F); emu.memory_.write(0x2007, 0x30);
                                 emu.memory_.write(0x2007, 0x16); emu.memory_.write(0x2007, 0x27);
                                 current_scene = SCENE_GAME;
+                                
+                                // Start Recording if enabled
+                                if (config.get_gameplay_recorder_enabled()) {
+                                    // Use filename as ROM name
+                                    std::string rom_name = fs::path(slots[i].rom_path).filename().string();
+                                    recorder.start_recording(rom_name);
+                                }
                             }
                         }
                         mouse_down_slot = -1;
@@ -1289,8 +1397,15 @@ int main(int argc, char* argv[]) {
                     if (mx > 50 && mx < 150 && my > 300 && my < 340) {
                         config.set_nickname(settings_nickname);
                         config.set_avatar_path(settings_avatar_path);
+                        config.set_gameplay_recorder_enabled(settings_recorder_enabled);
                         config.save();
                         current_scene = SCENE_HOME; // Return to Home
+                    }
+                    
+                    // Recorder Checkbox
+                    // Let's say it's at y=220
+                    if (mx > 50 && mx < 400 && my > 220 && my < 250) {
+                        settings_recorder_enabled = !settings_recorder_enabled;
                     }
 
                     // Back Button (Top Left)
@@ -1601,6 +1716,21 @@ int main(int argc, char* argv[]) {
             SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Border
             SDL_RenderDrawRect(renderer, &avatar_box);
             
+            // Gameplay Recorder Checkbox
+            int cb_y = 220;
+            SDL_Rect cb_box = {50, cb_y, 20, 20};
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+            SDL_RenderDrawRect(renderer, &cb_box);
+            if (settings_recorder_enabled) {
+                SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255);
+                SDL_RenderFillRect(renderer, &cb_box);
+                // Checkmark
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderDrawLine(renderer, 50 + 4, cb_y + 10, 50 + 8, cb_y + 16);
+                SDL_RenderDrawLine(renderer, 50 + 8, cb_y + 16, 50 + 16, cb_y + 4);
+            }
+            font_body.draw_text(renderer, "Enable Gameplay Recorder", 80, cb_y, {255, 255, 255, 255});
+
             // Save Button
             SDL_Rect save_btn = {50, 300, 100, 40};
             SDL_SetRenderDrawColor(renderer, 0, 150, 0, 255);
