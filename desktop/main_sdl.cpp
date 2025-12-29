@@ -972,8 +972,6 @@ struct QuickBall {
         items.push_back({x - 60, y - 10, 20, 0});
         // 2. Snapshot (Up-Left)
         items.push_back({x - 40, y - 50, 20, 1});
-        // 3. Reset (Up-Right)
-        items.push_back({x + 40, y - 50, 20, 2});
         // 4. Home (Right)
         items.push_back({x + 60, y - 10, 20, 3});
         // 5. Timer (Top) - Replaces Settings
@@ -1008,9 +1006,9 @@ struct QuickBall {
             }
             if (expanded) {
                 for (const auto& item : items) {
-                    // Skip Reset, Timer, and Share during replay
+                    // Skip Timer and Share during replay
                     bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
-                    if (is_replaying && (item.id == 2 || item.id == 4 || item.id == 0)) continue;
+                    if (is_replaying && (item.id == 4 || item.id == 0)) continue;
 
                     int idx = mx - item.x; int idy = my - item.y;
                     if (idx*idx + idy*idy <= item.r*item.r) {
@@ -1037,13 +1035,6 @@ struct QuickBall {
                                  SDL_FreeSurface(ss);
                                  std::cout << "[QuickBall] Snapshot saved: " << ss_name.str() << std::endl;
                              }
-                        } else if (item.id == 2) { // Reset
-                            recorder.stop_recording(); // Stop previous recording
-                            emu.reset();
-                            // Restart recording if enabled
-                            if (config.get_gameplay_recorder_enabled()) {
-                                recorder.start_recording(recorder.current_rom_name);
-                            }
                         } else if (item.id == 3) { // Home
                             recorder.stop_recording();
                             scene = SCENE_HOME;
@@ -1077,9 +1068,9 @@ struct QuickBall {
     void render(SDL_Renderer* renderer) {
         if (expanded) {
             for (const auto& item : items) {
-                // Skip Reset, Timer, and Share during replay
+                // Skip Timer and Share during replay
                 bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
-                if (is_replaying && (item.id == 2 || item.id == 4 || item.id == 0)) continue;
+                if (is_replaying && (item.id == 4 || item.id == 0)) continue;
 
                 SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
                 draw_filled_circle(renderer, item.x, item.y, item.r);
@@ -1099,13 +1090,6 @@ struct QuickBall {
                     SDL_RenderDrawRect(renderer, &box);
                     draw_circle_outline(renderer, item.x, item.y, 3);
                     SDL_RenderDrawPoint(renderer, item.x + 5, item.y - 7);
-                } else if (item.id == 2) { // Reset (R)
-                    int ix = item.x, iy = item.y;
-                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix - 4, iy + 6);
-                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix + 2, iy - 6);
-                    SDL_RenderDrawLine(renderer, ix + 2, iy - 6, ix + 2, iy);
-                    SDL_RenderDrawLine(renderer, ix + 2, iy, ix - 4, iy);
-                    SDL_RenderDrawLine(renderer, ix - 4, iy, ix + 4, iy + 6);
                 } else if (item.id == 3) { // Home (House)
                     int ix = item.x, iy = item.y;
                     SDL_RenderDrawLine(renderer, ix - 8, iy + 2, ix, iy - 8);
