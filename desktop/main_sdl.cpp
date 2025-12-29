@@ -574,7 +574,58 @@ void draw_filled_circle(SDL_Renderer* renderer, int cx, int cy, int radius) {
     }
 }
 
+// Helper to draw filled circle with Anti-Aliasing (Improved)
+void draw_filled_circle_aa(SDL_Renderer* renderer, int cx, int cy, int radius) {
+    if (radius <= 0) return;
+    Uint8 r, g, b, a;
+    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+
+    SDL_BlendMode old_mode;
+    SDL_GetRenderDrawBlendMode(renderer, &old_mode);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    for (int dy = -radius - 1; dy <= radius + 1; dy++) {
+        for (int dx = -radius - 1; dx <= radius + 1; dx++) {
+            float dist = std::sqrt((float)(dx * dx + dy * dy));
+            if (dist <= radius + 1.0f) {
+                float alpha_factor = std::clamp(radius + 0.5f - dist, 0.0f, 1.0f);
+                if (alpha_factor > 0.0f) {
+                    SDL_SetRenderDrawColor(renderer, r, g, b, (Uint8)(a * alpha_factor));
+                    SDL_RenderDrawPoint(renderer, cx + dx, cy + dy);
+                }
+            }
+        }
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer, old_mode);
+    SDL_SetRenderDrawColor(renderer, r, g, b, a);
+}
+
 // Helper to draw circle outline with Anti-Aliasing
+void draw_circle_outline_aa(SDL_Renderer* renderer, int cx, int cy, int radius) {
+    Uint8 r, g, b, a;
+    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+
+    SDL_BlendMode old_mode;
+    SDL_GetRenderDrawBlendMode(renderer, &old_mode);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    for (int dy = -radius - 1; dy <= radius + 1; dy++) {
+        for (int dx = -radius - 1; dx <= radius + 1; dx++) {
+            float dist = std::sqrt((float)(dx * dx + dy * dy));
+            float diff = std::abs(dist - radius);
+            if (diff < 1.0f) {
+                float alpha_factor = 1.0f - diff;
+                SDL_SetRenderDrawColor(renderer, r, g, b, (Uint8)(a * alpha_factor));
+                SDL_RenderDrawPoint(renderer, cx + dx, cy + dy);
+            }
+        }
+    }
+    SDL_SetRenderDrawBlendMode(renderer, old_mode);
+    SDL_SetRenderDrawColor(renderer, r, g, b, a);
+}
+
+// Helper to draw circle outline
 void draw_circle_outline(SDL_Renderer* renderer, int cx, int cy, int radius) {
     Uint8 r, g, b, a;
     SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
@@ -2431,7 +2482,7 @@ int main(int argc, char* argv[]) {
                         int cx = sx + slot_w/2;
                         int cy = sy + slot_h/2 - 20;
                         SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
-                        draw_filled_circle(renderer, cx, cy, 40);
+                        draw_filled_circle_aa(renderer, cx, cy, 40);
                         
                         // Plus Sign
                         SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
@@ -2494,12 +2545,10 @@ int main(int argc, char* argv[]) {
                         // Draw 3 Dots Menu Icon (Top Right)
                         int dx = sx + slot_w - 20;
                         int dy = sy + 25;
-                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                         SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255); // Premium Dark Slate
-                        draw_filled_circle(renderer, dx, dy - 6, 3);
-                        draw_filled_circle(renderer, dx, dy, 3);
-                        draw_filled_circle(renderer, dx, dy + 6, 3);
-                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                        draw_filled_circle_aa(renderer, dx, dy - 6, 3);
+                        draw_filled_circle_aa(renderer, dx, dy, 3);
+                        draw_filled_circle_aa(renderer, dx, dy + 6, 3);
                     }
                 }
             } else if (home_active_panel == HOME_PANEL_LIBRARY) {
@@ -2670,12 +2719,12 @@ int main(int argc, char* argv[]) {
                 
                 // Section Title with Icon
                 SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
-                draw_filled_circle(renderer, content_x + 10, section_y + 12, 12);
+                draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 12);
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                draw_filled_circle(renderer, content_x + 10, section_y + 8, 4); // Head
+                draw_filled_circle_aa(renderer, content_x + 10, section_y + 8, 4); // Head
                 SDL_Rect body_icon = {content_x + 6, section_y + 13, 8, 4}; SDL_RenderFillRect(renderer, &body_icon);
                 
-                font_title.draw_text(renderer, "CREATE HOST", content_x + 35, section_y + 18, {34, 43, 50, 255});
+                font_title.draw_text(renderer, "CREATE HOST", content_x + 35, section_y + 22, {34, 43, 50, 255});
                 section_y += 50;
                 
                 // Premium Card Container
@@ -2696,7 +2745,7 @@ int main(int argc, char* argv[]) {
                 int row_y = section_y + padding;
                 
                 // Row 1: ROM Selection
-                font_small.draw_text(renderer, "SELECT GAME TO HOST", content_x + padding, row_y, {120, 120, 120, 255});
+                font_small.draw_text(renderer, "SELECT GAME TO HOST", content_x + padding, row_y + 5, {120, 120, 120, 255});
                 row_y += 20;
                 
                 SDL_Rect rom_field = {content_x + padding, row_y, content_width - 150, 40};
@@ -2707,17 +2756,17 @@ int main(int argc, char* argv[]) {
                 
                 std::string rom_txt = duo_selected_rom_name.empty() ? "Choose a game..." : duo_selected_rom_name;
                 SDL_Color rom_clr = duo_selected_rom_name.empty() ? SDL_Color{180, 180, 180, 255} : SDL_Color{34, 43, 50, 255};
-                font_body.draw_text(renderer, rom_txt, rom_field.x + 12, rom_field.y + 12, rom_clr);
+                font_body.draw_text(renderer, rom_txt, rom_field.x + 12, rom_field.y + 26, rom_clr);
                 
                 SDL_Rect browse_btn = {content_x + content_width - 115, row_y, 90, 40};
                 SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
                 SDL_RenderFillRect(renderer, &browse_btn);
-                font_body.draw_text(renderer, "Browse", browse_btn.x + 15, browse_btn.y + 12, {255, 255, 255, 255});
+                font_body.draw_text(renderer, "Browse", browse_btn.x + 15, browse_btn.y + 26, {255, 255, 255, 255});
                 
                 row_y += 60;
                 
                 // Row 2: Host Name
-                font_small.draw_text(renderer, "YOUR NICKNAME", content_x + padding, row_y, {120, 120, 120, 255});
+                font_small.draw_text(renderer, "HOST NAME", content_x + padding, row_y + 5, {120, 120, 120, 255});
                 row_y += 20;
                 
                 SDL_Rect name_field = {content_x + padding, row_y, 250, 40};
@@ -2726,7 +2775,7 @@ int main(int argc, char* argv[]) {
                 SDL_SetRenderDrawColor(renderer, duo_active_input_field == 0 ? 50 : 220, duo_active_input_field == 0 ? 150 : 220, duo_active_input_field == 0 ? 250 : 220, 255);
                 SDL_RenderDrawRect(renderer, &name_field);
                 
-                font_body.draw_text(renderer, duo_host_name, name_field.x + 12, name_field.y + 12, {34, 43, 50, 255});
+                font_body.draw_text(renderer, duo_host_name, name_field.x + 12, name_field.y + 26, {34, 43, 50, 255});
                 if (duo_active_input_field == 0) {
                     float tw = font_body.get_text_width(duo_host_name);
                     SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
@@ -2742,20 +2791,20 @@ int main(int argc, char* argv[]) {
                     SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
                 }
                 SDL_RenderFillRect(renderer, &host_btn);
-                font_body.draw_text(renderer, "Start Hosting", host_btn.x + 15, host_btn.y + 12, {255, 255, 255, 255});
+                font_body.draw_text(renderer, "Start Hosting", host_btn.x + 15, host_btn.y + 26, {255, 255, 255, 255});
                 
                 section_y += 210;
                 
                 // === AVAILABLE HOSTS SECTION ===
                 // Section Title with Icon
                 SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
-                draw_filled_circle(renderer, content_x + 10, section_y + 12, 12);
+                draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 12);
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                draw_filled_circle(renderer, content_x + 10, section_y + 12, 6);
+                draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 6);
                 SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
-                draw_filled_circle(renderer, content_x + 10, section_y + 12, 3);
+                draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 3);
                 
-                font_title.draw_text(renderer, "AVAILABLE HOSTS", content_x + 35, section_y + 18, {34, 43, 50, 255});
+                font_title.draw_text(renderer, "AVAILABLE HOSTS", content_x + 35, section_y + 22, {34, 43, 50, 255});
                 section_y += 50;
                 
                 auto hosts = discovery.get_peers();
@@ -2763,7 +2812,7 @@ int main(int argc, char* argv[]) {
                     SDL_Rect empty_card = {content_x, section_y, content_width, 120};
                     SDL_SetRenderDrawColor(renderer, 245, 245, 245, 255);
                     SDL_RenderFillRect(renderer, &empty_card);
-                    font_body.draw_text(renderer, "Searching for nearby players...", content_x + content_width/2 - 120, section_y + 50, {150, 150, 150, 255});
+                    font_body.draw_text(renderer, "Searching for nearby players...", content_x + content_width/2 - 120, section_y + 66, {150, 150, 150, 255});
                 } else {
                     int hy = section_y;
                     for (const auto& host : hosts) {
@@ -2775,11 +2824,11 @@ int main(int argc, char* argv[]) {
                         
                         // Status Indicator
                         SDL_SetRenderDrawColor(renderer, 46, 204, 113, 255);
-                        draw_filled_circle(renderer, content_x + 25, hy + 40, 6);
+                        draw_filled_circle_aa(renderer, content_x + 25, hy + 40, 6);
                         
                         // Player Info
-                        font_body.draw_text(renderer, host.username, content_x + 50, hy + 20, {34, 43, 50, 255});
-                        font_small.draw_text(renderer, "Playing: " + host.game_name, content_x + 50, hy + 45, {120, 120, 120, 255});
+                        font_body.draw_text(renderer, host.username, content_x + 50, hy + 35, {34, 43, 50, 255});
+                        font_small.draw_text(renderer, "Playing: " + host.game_name, content_x + 50, hy + 58, {120, 120, 120, 255});
                         
                         // Connect Button
                         bool has_rom = false;
@@ -2793,7 +2842,7 @@ int main(int argc, char* argv[]) {
                         }
                         SDL_RenderFillRect(renderer, &conn_btn);
                         std::string btn_label = has_rom ? "Connect" : "Missing ROM";
-                        font_small.draw_text(renderer, btn_label, conn_btn.x + (has_rom ? 20 : 10), conn_btn.y + 15, {255, 255, 255, 255});
+                        font_small.draw_text(renderer, btn_label, conn_btn.x + (has_rom ? 25 : 15), conn_btn.y + 26, {255, 255, 255, 255});
                         
                         hy += 90;
                     }
@@ -2831,14 +2880,14 @@ int main(int argc, char* argv[]) {
                     SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
                     SDL_RenderDrawLine(renderer, dialog_x, dialog_y + 60, dialog_x + dialog_w, dialog_y + 60);
                     
-                    font_title.draw_text(renderer, "SELECT GAME", dialog_x + 20, dialog_y + 20, {34, 43, 50, 255});
+                    font_title.draw_text(renderer, "SELECT GAME", dialog_x + 20, dialog_y + 40, {34, 43, 50, 255});
                     
                     // Circular Close Button
                     int close_cx = dialog_x + dialog_w - 30;
                     int close_cy = dialog_y + 30;
                     int close_r = 15;
                     SDL_SetRenderDrawColor(renderer, 231, 76, 60, 255); // Alizarin Red
-                    draw_filled_circle(renderer, close_cx, close_cy, close_r);
+                    draw_filled_circle_aa(renderer, close_cx, close_cy, close_r);
                     // Draw 'X'
                     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                     SDL_RenderDrawLine(renderer, close_cx - 5, close_cy - 5, close_cx + 5, close_cy + 5);
@@ -2861,26 +2910,26 @@ int main(int argc, char* argv[]) {
                         
                         // Icon Placeholder (Game Icon)
                         SDL_SetRenderDrawColor(renderer, 52, 152, 219, 255);
-                        draw_filled_circle(renderer, item.x + 25, item.y + item_h/2, 15);
+                        draw_filled_circle_aa(renderer, item.x + 25, item.y + item_h/2, 15);
                         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                        draw_filled_circle(renderer, item.x + 25, item.y + item_h/2, 6);
+                        draw_filled_circle_aa(renderer, item.x + 25, item.y + item_h/2, 6);
                         
                         // ROM Name
-                        font_body.draw_text(renderer, slots[i].name, item.x + 55, item.y + 12, {34, 43, 50, 255});
+                        font_body.draw_text(renderer, slots[i].name, item.x + 55, item.y + 24, {34, 43, 50, 255});
                         
                         // Path (truncated)
                         std::string path_display = slots[i].rom_path;
                         if (path_display.length() > 45) {
                             path_display = "..." + path_display.substr(path_display.length() - 42);
                         }
-                        font_small.draw_text(renderer, path_display, item.x + 55, item.y + 32, {150, 150, 150, 255});
+                        font_small.draw_text(renderer, path_display, item.x + 55, item.y + 45, {150, 150, 150, 255});
                         
                         list_y += item_h + item_margin;
                         count++;
                     }
                     
                     if (count == 0) {
-                        font_body.draw_text(renderer, "No games found in slots.", dialog_x + 150, dialog_y + 200, {150, 150, 150, 255});
+                        font_body.draw_text(renderer, "No games found in slots.", dialog_x + 150, dialog_y + 226, {150, 150, 150, 255});
                     }
                     
                     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
@@ -3339,9 +3388,9 @@ int main(int argc, char* argv[]) {
 
                 // 1. Play/Pause Button
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
-                draw_filled_circle(renderer, start_x, bottom_y, btn_radius);
+                draw_filled_circle_aa(renderer, start_x, bottom_y, btn_radius);
                 SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-                draw_circle_outline(renderer, start_x, bottom_y, btn_radius);
+                draw_circle_outline_aa(renderer, start_x, bottom_y, btn_radius);
                 
                 // Icon
                 SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
@@ -3361,9 +3410,9 @@ int main(int argc, char* argv[]) {
 
                 // 2. Fast Forward (>>)
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
-                draw_filled_circle(renderer, ff_x, bottom_y, btn_radius);
+                draw_filled_circle_aa(renderer, ff_x, bottom_y, btn_radius);
                 SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-                draw_circle_outline(renderer, ff_x, bottom_y, btn_radius);
+                draw_circle_outline_aa(renderer, ff_x, bottom_y, btn_radius);
                 
                 // Icon (>>)
                 SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
@@ -3372,9 +3421,9 @@ int main(int argc, char* argv[]) {
 
                 // 3. Slow Down (<<)
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
-                draw_filled_circle(renderer, rw_x, bottom_y, btn_radius);
+                draw_filled_circle_aa(renderer, rw_x, bottom_y, btn_radius);
                 SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-                draw_circle_outline(renderer, rw_x, bottom_y, btn_radius);
+                draw_circle_outline_aa(renderer, rw_x, bottom_y, btn_radius);
 
                 // Icon (<<)
                 SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
