@@ -3182,21 +3182,24 @@ int main(int argc, char* argv[]) {
                          // Get current P1 input state
                          uint8_t local_input = emu.get_controller_state(0);
                          
-                         // Check for Start button press (pause/resume)
-                         static bool prev_start_pressed = false;
-                         bool start_pressed = (local_input & (1 << Input::BUTTON_START)) != 0;
-                         if (start_pressed && !prev_start_pressed) {
-                             // Start button just pressed - toggle pause
-                             multiplayer_paused = !multiplayer_paused;
-                             if (multiplayer_paused) {
-                                 std::cout << "⏸️ Pausing game..." << std::endl;
-                                 net_manager.send_input(MSG_PAUSE_GAME, 0);
-                             } else {
-                                 std::cout << "▶️ Resuming game..." << std::endl;
-                                 net_manager.send_input(MSG_RESUME_GAME, 0);
+                         // Only host can control pause (to prevent conflicts)
+                         if (lobby_is_host) {
+                             // Check for Start button press (pause/resume)
+                             static bool prev_start_pressed_host = false;
+                             bool start_pressed_host = (local_input & (1 << Input::BUTTON_START)) != 0;
+                             if (start_pressed_host && !prev_start_pressed_host) {
+                                 // Start button just pressed - toggle pause
+                                 multiplayer_paused = !multiplayer_paused;
+                                 if (multiplayer_paused) {
+                                     std::cout << "⏸️ Pausing game..." << std::endl;
+                                     net_manager.send_input(MSG_PAUSE_GAME, 0);
+                                 } else {
+                                     std::cout << "▶️ Resuming game..." << std::endl;
+                                     net_manager.send_input(MSG_RESUME_GAME, 0);
+                                 }
                              }
+                             prev_start_pressed_host = start_pressed_host;
                          }
-                         prev_start_pressed = start_pressed;
                          
                          // Check for pause/resume messages from remote
                          nes::NetworkManager::Packet remote_packet;
