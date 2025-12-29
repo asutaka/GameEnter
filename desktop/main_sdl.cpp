@@ -1784,9 +1784,10 @@ int main(int argc, char* argv[]) {
                         }
                     } else if (showing_context_menu) {
                         // Handle Context Menu Clicks
-                        int w = 150; int h = 100;
+                        int w = 180; int h = 120;
+                        int item_h = 40;
                         // Add Shortcut
-                        if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + 35) {
+                        if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + item_h) {
                             // Create Shortcut (.lnk) using PowerShell
                             if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
                                 std::string desktop_path = getenv("USERPROFILE");
@@ -1822,7 +1823,7 @@ int main(int argc, char* argv[]) {
                             showing_context_menu = false;
                         }
                         // Change Cover
-                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + 35 && my <= menu_y + 65) {
+                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + item_h && my <= menu_y + item_h * 2) {
                             #ifdef _WIN32
                             if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
                                 OPENFILENAME ofn;
@@ -1869,7 +1870,7 @@ int main(int argc, char* argv[]) {
                             showing_context_menu = false;
                         }
                         // Delete
-                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + 65 && my <= menu_y + 100) {
+                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + item_h * 2 && my <= menu_y + h) {
                             delete_candidate_index = context_menu_slot;
                             showing_delete_popup = true;
                             showing_context_menu = false;
@@ -2897,38 +2898,69 @@ int main(int argc, char* argv[]) {
 
             // --- CONTEXT MENU ---
             if (showing_context_menu) {
-                int w = 150; int h = 100;
+                int w = 180; int h = 120;
+                int item_h = 40;
                 SDL_Rect menu = {menu_x, menu_y, w, h};
                 
-                // Shadow
+                // 1. Shadow (Subtle & Large)
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 50);
-                SDL_Rect shadow = {menu_x + 5, menu_y + 5, w, h};
-                SDL_RenderFillRect(renderer, &shadow);
-                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-
-                // Menu BG
+                for (int i = 1; i <= 5; i++) {
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 40 / i);
+                    SDL_Rect shadow = {menu_x + i, menu_y + i, w, h};
+                    SDL_RenderDrawRect(renderer, &shadow);
+                }
+                
+                // 2. Menu Background
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 SDL_RenderFillRect(renderer, &menu);
-                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
                 SDL_RenderDrawRect(renderer, &menu);
 
-                // Add Shortcut Item
-                font_small.draw_text(renderer, "Add Shortcut", menu_x + 10, menu_y + 15, {0, 0, 0, 255});
-                
-                // Separator 1
-                SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
-                SDL_RenderDrawLine(renderer, menu_x, menu_y + 35, menu_x + w, menu_y + 35);
+                // 3. Render Items
+                int mouse_x, mouse_y;
+                SDL_GetMouseState(&mouse_x, &mouse_y);
 
-                // Change Cover Item
-                font_small.draw_text(renderer, "Change Cover", menu_x + 10, menu_y + 45, {0, 100, 200, 255});
-                
-                // Separator 2
-                SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
-                SDL_RenderDrawLine(renderer, menu_x, menu_y + 65, menu_x + w, menu_y + 65);
+                for (int i = 0; i < 3; i++) {
+                    int iy = menu_y + i * item_h;
+                    SDL_Rect item_rect = {menu_x, iy, w, item_h};
+                    
+                    // Hover Effect
+                    if (mouse_x >= menu_x && mouse_x <= menu_x + w && mouse_y >= iy && mouse_y <= iy + item_h) {
+                        SDL_SetRenderDrawColor(renderer, 245, 245, 245, 255);
+                        SDL_RenderFillRect(renderer, &item_rect);
+                    }
 
-                // Delete Item
-                font_small.draw_text(renderer, "Delete", menu_x + 10, menu_y + 75, {200, 50, 50, 255});
+                    // Icon & Text
+                    int icon_x = menu_x + 12;
+                    int text_x = menu_x + 40;
+                    int center_y = iy + 20; // Middle of the 40px item
+
+                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255); // Premium Dark Slate
+                    if (i == 0) { // Add Shortcut
+                        // Link Icon (Centered)
+                        SDL_Rect link1 = {icon_x, center_y - 1, 12, 2}; SDL_RenderFillRect(renderer, &link1);
+                        SDL_Rect link2 = {icon_x + 2, center_y - 5, 2, 10}; SDL_RenderFillRect(renderer, &link2);
+                        font_small.draw_text(renderer, "Add Shortcut", text_x, center_y + 6, {34, 43, 50, 255});
+                    } else if (i == 1) { // Change Cover
+                        // Image Icon (Centered)
+                        SDL_Rect img = {icon_x, center_y - 5, 14, 10}; SDL_RenderDrawRect(renderer, &img);
+                        draw_filled_circle(renderer, icon_x + 4, center_y - 2, 2);
+                        font_small.draw_text(renderer, "Change Cover", text_x, center_y + 6, {34, 43, 50, 255});
+                    } else if (i == 2) { // Delete
+                        // Trash Icon (Centered)
+                        SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255); // Red for delete
+                        SDL_Rect bin = {icon_x + 2, center_y - 3, 10, 10}; SDL_RenderFillRect(renderer, &bin);
+                        SDL_Rect lid = {icon_x, center_y - 5, 14, 2}; SDL_RenderFillRect(renderer, &lid);
+                        font_small.draw_text(renderer, "Delete ROM", text_x, center_y + 6, {200, 80, 80, 255});
+                    }
+
+                    // Separators
+                    if (i < 2) {
+                        SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
+                        SDL_RenderDrawLine(renderer, menu_x + 10, iy + item_h, menu_x + w - 10, iy + item_h);
+                    }
+                }
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
             }
 
             // --- POPUP ---
