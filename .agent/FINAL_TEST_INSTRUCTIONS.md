@@ -165,3 +165,22 @@ Stop-Process -Name "nes_app" -Force -ErrorAction SilentlyContinue
 ---
 
 **Nếu tất cả đều OK → MULTIPLAYER HOÀN CHỈNH! 🎊**
+
+---
+
+## 🧭 QUICKBALL HOME MENU TEST:
+
+1.  **Launch Emulator:**
+    *   Verify **NO TABS** at the top.
+    *   Verify **QuickBall** at bottom center.
+
+2.  **Navigation:**
+    *   Click QuickBall → Expand.
+    *   **Left (Grid):** Go to Games.
+    *   **Top (Play):** Go to Replays.
+    *   **Right (2 Dots):** Go to Duo.
+
+3.  **Context Switching:**
+    *   **Enter Game:** QuickBall changes to Normal layout (Share, Snapshot, Home, Timer).
+    *   **Return Home:** QuickBall changes back to Home layout.
+    *   **Enter Replay:** QuickBall changes to Replay layout.
