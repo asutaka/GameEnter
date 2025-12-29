@@ -551,32 +551,45 @@ std::string find_cover_image(const std::string& rom_path) {
     return "";
 }
 
-// Helper to draw filled circle
+// Helper to draw filled circle with Anti-Aliasing
 void draw_filled_circle(SDL_Renderer* renderer, int cx, int cy, int radius) {
-    for (int w = 0; w < radius * 2; w++) {
-        for (int h = 0; h < radius * 2; h++) {
-            int dx = radius - w; // horizontal offset
-            int dy = radius - h; // vertical offset
-            if ((dx*dx + dy*dy) <= (radius * radius)) {
-                SDL_RenderDrawPoint(renderer, cx + dx, cy + dy);
+    Uint8 r, g, b, a;
+    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            int dist_sq = dx * dx + dy * dy;
+            if (dist_sq <= (radius * radius)) {
+                float dist = std::sqrt((float)dist_sq);
+                if (dist > radius - 1.0f) {
+                    float alpha_factor = radius - dist;
+                    SDL_SetRenderDrawColor(renderer, r, g, b, (Uint8)(a * alpha_factor));
+                    SDL_RenderDrawPoint(renderer, cx + dx, cy + dy);
+                    SDL_SetRenderDrawColor(renderer, r, g, b, a);
+                } else {
+                    SDL_RenderDrawPoint(renderer, cx + dx, cy + dy);
+                }
             }
         }
     }
 }
 
-// Helper to draw circle outline
+// Helper to draw circle outline with Anti-Aliasing
 void draw_circle_outline(SDL_Renderer* renderer, int cx, int cy, int radius) {
-    const int segments = 64;
-    for (int i = 0; i < segments; i++) {
-        float theta = 2.0f * 3.1415926f * float(i) / float(segments);
-        float next_theta = 2.0f * 3.1415926f * float(i + 1) / float(segments);
-        
-        int x1 = cx + int(radius * cosf(theta));
-        int y1 = cy + int(radius * sinf(theta));
-        int x2 = cx + int(radius * cosf(next_theta));
-        int y2 = cy + int(radius * sinf(next_theta));
-        
-        SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+    Uint8 r, g, b, a;
+    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+
+    for (int dy = -radius - 1; dy <= radius + 1; dy++) {
+        for (int dx = -radius - 1; dx <= radius + 1; dx++) {
+            float dist = std::sqrt((float)(dx * dx + dy * dy));
+            float diff = std::abs(dist - radius);
+            if (diff < 1.0f) {
+                float alpha_factor = 1.0f - diff;
+                SDL_SetRenderDrawColor(renderer, r, g, b, (Uint8)(a * alpha_factor));
+                SDL_RenderDrawPoint(renderer, cx + dx, cy + dy);
+                SDL_SetRenderDrawColor(renderer, r, g, b, a);
+            }
+        }
     }
 }
 
