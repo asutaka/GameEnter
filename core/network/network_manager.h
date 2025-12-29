@@ -76,6 +76,7 @@ private:
     std::atomic<State> state_;
     std::atomic<bool> is_host_;
     SOCKET socket_;
+    SOCKET listen_socket_ = INVALID_SOCKET; // Added to allow closing from disconnect()
     std::thread network_thread_;
     std::thread receive_thread_;
     std::atomic<bool> running_;

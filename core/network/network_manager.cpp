@@ -5,7 +5,7 @@
 namespace nes {
 
 NetworkManager::NetworkManager() 
-    : state_(State::DISCONNECTED), is_host_(false), socket_(INVALID_SOCKET), running_(false) {
+    : state_(State::DISCONNECTED), is_host_(false), socket_(INVALID_SOCKET), listen_socket_(INVALID_SOCKET), running_(false) {
 }
 
 NetworkManager::~NetworkManager() {
@@ -43,6 +43,15 @@ void NetworkManager::disconnect() {
         socket_ = INVALID_SOCKET;
     }
 
+    if (listen_socket_ != INVALID_SOCKET) {
+#ifdef _WIN32
+        closesocket(listen_socket_);
+#else
+        close(listen_socket_);
+#endif
+        listen_socket_ = INVALID_SOCKET;
+    }
+
     if (network_thread_.joinable()) network_thread_.join();
     if (receive_thread_.joinable()) receive_thread_.join();
     
@@ -73,8 +82,8 @@ bool NetworkManager::connect_to(const std::string& ip, int port) {
 }
 
 void NetworkManager::host_thread_func(int port) {
-    SOCKET listen_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listen_socket == INVALID_SOCKET) {
+    listen_socket_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listen_socket_ == INVALID_SOCKET) {
         std::cerr << "Error creating listen socket" << std::endl;
         state_ = State::DISCONNECTED;
         return;
@@ -85,16 +94,18 @@ void NetworkManager::host_thread_func(int port) {
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(port);
 
-    if (bind(listen_socket, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+    if (bind(listen_socket_, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
         std::cerr << "Bind failed" << std::endl;
-        closesocket(listen_socket);
+        closesocket(listen_socket_);
+        listen_socket_ = INVALID_SOCKET;
         state_ = State::DISCONNECTED;
         return;
     }
 
-    if (listen(listen_socket, 1) == SOCKET_ERROR) {
+    if (listen(listen_socket_, 1) == SOCKET_ERROR) {
         std::cerr << "Listen failed" << std::endl;
-        closesocket(listen_socket);
+        closesocket(listen_socket_);
+        listen_socket_ = INVALID_SOCKET;
         state_ = State::DISCONNECTED;
         return;
     }
@@ -102,16 +113,25 @@ void NetworkManager::host_thread_func(int port) {
     std::cout << "Hosting on port " << port << "..." << std::endl;
 
     // Accept a client
-    SOCKET client_socket = accept(listen_socket, NULL, NULL);
+    SOCKET client_socket = accept(listen_socket_, NULL, NULL);
     if (client_socket == INVALID_SOCKET) {
-        std::cerr << "Accept failed" << std::endl;
-        closesocket(listen_socket);
+        // This is expected if we close the socket to cancel hosting
+        if (running_) {
+             std::cerr << "Accept failed" << std::endl;
+        }
+        if (listen_socket_ != INVALID_SOCKET) {
+            closesocket(listen_socket_);
+            listen_socket_ = INVALID_SOCKET;
+        }
         state_ = State::DISCONNECTED;
         return;
     }
 
     // Close listen socket, we only support 1 client
-    closesocket(listen_socket);
+    if (listen_socket_ != INVALID_SOCKET) {
+        closesocket(listen_socket_);
+        listen_socket_ = INVALID_SOCKET;
+    }
     
     socket_ = client_socket;
     

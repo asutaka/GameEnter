@@ -1363,7 +1363,8 @@ int main(int argc, char* argv[]) {
     // Duo Panel State
     std::string duo_selected_rom_path = "";
     std::string duo_selected_rom_name = "";
-    std::string duo_host_name = "";
+    // Tự động điền Nickname từ Settings (nếu có), nếu không thì mặc định là "Player 1"
+    std::string duo_host_name = (!settings_nickname.empty()) ? settings_nickname : "Player 1";
     bool duo_rom_selector_open = false;
     int duo_active_input_field = -1; // -1: none, 0: host name
     
