@@ -1417,6 +1417,14 @@ int main(int argc, char* argv[]) {
                  slots.resize(slots.size() + 3);
              }
         }
+        
+        // Poll network connection state in lobby
+        if (current_scene == SCENE_LOBBY && lobby_is_host) {
+            if (net_manager.is_connected() && !lobby_player2_connected) {
+                lobby_player2_connected = true;
+                std::cout << "✅ Player 2 connected!" << std::endl;
+            }
+        }
 
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
