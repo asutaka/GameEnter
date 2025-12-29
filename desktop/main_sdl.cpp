@@ -593,27 +593,62 @@ void draw_circle_outline(SDL_Renderer* renderer, int cx, int cy, int radius) {
     }
 }
 
-// Helper to draw filled triangle
+// Helper to draw filled triangle with Anti-Aliasing
 void draw_filled_triangle(SDL_Renderer* renderer, int x1, int y1, int x2, int y2, int x3, int y3) {
-    int minx = std::min(x1, std::min(x2, x3));
-    int maxx = std::max(x1, std::max(x2, x3));
-    int miny = std::min(y1, std::min(y2, y3));
-    int maxy = std::max(y1, std::max(y2, y3));
+    // Ensure Counter-Clockwise winding
+    if ((x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1) < 0) {
+        std::swap(x2, x3);
+        std::swap(y2, y3);
+    }
+
+    // Bounding box
+    int minx = std::min({x1, x2, x3});
+    int maxx = std::max({x1, x2, x3});
+    int miny = std::min({y1, y2, y3});
+    int maxy = std::max({y1, y2, y3});
+
+    // Pad for AA
+    minx -= 1; miny -= 1; maxx += 1; maxy += 1;
+
+    // Current Color
+    Uint8 r, g, b, a;
+    SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+
+    // Edge constants
+    float A0 = (float)(y2 - y3); float B0 = (float)(x3 - x2); float C0 = -A0*x2 - B0*y2;
+    float A1 = (float)(y3 - y1); float B1 = (float)(x1 - x3); float C1 = -A1*x3 - B1*y3;
+    float A2 = (float)(y1 - y2); float B2 = (float)(x2 - x1); float C2 = -A2*x1 - B2*y1;
+
+    // Normalization factors (1 / length of normal)
+    float invLen0 = 1.0f / std::hypot(A0, B0);
+    float invLen1 = 1.0f / std::hypot(A1, B1);
+    float invLen2 = 1.0f / std::hypot(A2, B2);
 
     for (int y = miny; y <= maxy; y++) {
         for (int x = minx; x <= maxx; x++) {
-            float w1 = (x1*(y3-y1) + (y-y1)*(x3-x1) - x*(y3-y1)) / (float)((y2-y1)*(x3-x1) - (x2-x1)*(y3-y1));
-            float w2 = (y - y1 - w1*(y2-y1)) / (float)(y3-y1);
-            float w3 = 1.0f - w1 - w2;
-            
-            if (w1 >= 0 && w2 >= 0 && w3 >= 0) {
-                 SDL_RenderDrawPoint(renderer, x, y);
+            float px = x + 0.5f;
+            float py = y + 0.5f;
+
+            // Signed distances to edges
+            float d0 = (A0 * px + B0 * py + C0) * invLen0;
+            float d1 = (A1 * px + B1 * py + C1) * invLen1;
+            float d2 = (A2 * px + B2 * py + C2) * invLen2;
+
+            // Distance to the shape (min of distances to edges)
+            float min_dist = std::min({d0, d1, d2});
+
+            // Alpha calculation: 0.5 + dist. 
+            // Inside: dist > 0. On edge: dist = 0 (alpha 0.5). Outside: dist < 0.
+            float alpha_factor = std::clamp(0.5f + min_dist, 0.0f, 1.0f);
+
+            if (alpha_factor > 0.0f) {
+                SDL_SetRenderDrawColor(renderer, r, g, b, (Uint8)(a * alpha_factor));
+                SDL_RenderDrawPoint(renderer, x, y);
             }
         }
     }
-    SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
-    SDL_RenderDrawLine(renderer, x2, y2, x3, y3);
-    SDL_RenderDrawLine(renderer, x3, y3, x1, y1);
+    // Restore color
+    SDL_SetRenderDrawColor(renderer, r, g, b, a);
 }
 
 // Helper to draw NES Cartridge Icon
@@ -1101,74 +1136,119 @@ struct QuickBall {
 
     void render(SDL_Renderer* renderer) {
         if (expanded) {
+            // Draw a subtle overlay when expanded
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 40);
+            SDL_Rect overlay = {0, 0, SCREEN_WIDTH * SCALE, SCREEN_HEIGHT * SCALE};
+            SDL_RenderFillRect(renderer, &overlay);
+
             for (const auto& item : items) {
                 // Skip Timer and Share during replay
                 bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
                 if (is_replaying && (item.id == 4 || item.id == 0)) continue;
 
-                SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
+                // 1. Shadow
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 30);
+                draw_filled_circle(renderer, item.x + 2, item.y + 2, item.r);
+
+                // 2. White Background (Pure white for contrast)
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 draw_filled_circle(renderer, item.x, item.y, item.r);
-                SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                
+                // 3. Border (Darker gray for definition)
+                SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
                 draw_circle_outline(renderer, item.x, item.y, item.r);
                 
-                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                // 4. Icon (Darker, more premium color)
+                SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255); // Dark Slate
                 if (item.id == 0) { // Share
                     int ix = item.x, iy = item.y;
-                    draw_filled_circle(renderer, ix - 5, iy, 3);
-                    draw_filled_circle(renderer, ix + 5, iy - 5, 3);
-                    draw_filled_circle(renderer, ix + 5, iy + 5, 3);
-                    SDL_RenderDrawLine(renderer, ix - 5, iy, ix + 5, iy - 5);
-                    SDL_RenderDrawLine(renderer, ix - 5, iy, ix + 5, iy + 5);
-                } else if (item.id == 1) { // Snapshot
-                    SDL_Rect box = {item.x - 7, item.y - 5, 14, 10};
-                    SDL_RenderDrawRect(renderer, &box);
-                    draw_circle_outline(renderer, item.x, item.y, 3);
-                    SDL_RenderDrawPoint(renderer, item.x + 5, item.y - 7);
+                    draw_filled_circle(renderer, ix - 6, iy, 4);
+                    draw_filled_circle(renderer, ix + 6, iy - 6, 4);
+                    draw_filled_circle(renderer, ix + 6, iy + 6, 4);
+                    SDL_RenderDrawLine(renderer, ix - 6, iy, ix + 6, iy - 6);
+                    SDL_RenderDrawLine(renderer, ix - 6, iy, ix + 6, iy + 6);
+                    SDL_RenderDrawLine(renderer, ix - 6, iy + 1, ix + 6, iy - 5);
+                    SDL_RenderDrawLine(renderer, ix - 6, iy - 1, ix + 6, iy + 5);
+                } else if (item.id == 1) { // Snapshot (Camera)
+                    int ix = item.x, iy = item.y;
+                    SDL_Rect body = {ix - 8, iy - 5, 16, 11};
+                    SDL_RenderFillRect(renderer, &body);
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    draw_filled_circle(renderer, ix, iy + 1, 3);
+                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+                    SDL_Rect top = {ix - 4, iy - 8, 8, 3};
+                    SDL_RenderFillRect(renderer, &top);
                 } else if (item.id == 3) { // Home
                     int ix = item.x, iy = item.y;
-                    SDL_RenderDrawLine(renderer, ix - 8, iy + 2, ix, iy - 8);
-                    SDL_RenderDrawLine(renderer, ix, iy - 8, ix + 8, iy + 2);
-                    SDL_Rect box = {ix - 6, iy + 2, 12, 8};
-                    SDL_RenderDrawRect(renderer, &box);
-                } else if (item.id == 4) { // Timer
+                    draw_filled_triangle(renderer, ix - 10, iy - 1, ix + 10, iy - 1, ix, iy - 10);
+                    SDL_Rect body = {ix - 7, iy - 1, 14, 10};
+                    SDL_RenderFillRect(renderer, &body);
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    SDL_Rect door = {ix - 2, iy + 3, 4, 6};
+                    SDL_RenderFillRect(renderer, &door);
+                } else if (item.id == 4) { // Timer (Stopwatch)
                     int ix = item.x, iy = item.y;
-                    draw_circle_outline(renderer, ix, iy, 12);
-                    SDL_RenderDrawLine(renderer, ix, iy, ix, iy - 8);
-                    SDL_RenderDrawLine(renderer, ix, iy, ix + 6, iy);
-                } else if (item.id == 10) { // Games
+                    draw_filled_circle(renderer, ix, iy + 1, 10);
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    draw_filled_circle(renderer, ix, iy + 1, 7);
+                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+                    SDL_RenderDrawLine(renderer, ix, iy + 1, ix, iy - 4);
+                    SDL_RenderDrawLine(renderer, ix, iy + 1, ix + 3, iy + 1);
+                    SDL_Rect btn = {ix - 2, iy - 11, 4, 3};
+                    SDL_RenderFillRect(renderer, &btn);
+                } else if (item.id == 10) { // Games (Grid)
                     int ix = item.x, iy = item.y;
-                    SDL_Rect r1 = {ix - 6, iy - 6, 4, 4}; SDL_RenderFillRect(renderer, &r1);
-                    SDL_Rect r2 = {ix + 2, iy - 6, 4, 4}; SDL_RenderFillRect(renderer, &r2);
-                    SDL_Rect r3 = {ix - 6, iy + 2, 4, 4}; SDL_RenderFillRect(renderer, &r3);
-                    SDL_Rect r4 = {ix + 2, iy + 2, 4, 4}; SDL_RenderFillRect(renderer, &r4);
-                } else if (item.id == 11) { // Replays
+                    SDL_Rect r1 = {ix - 7, iy - 7, 6, 6}; SDL_RenderFillRect(renderer, &r1);
+                    SDL_Rect r2 = {ix + 1, iy - 7, 6, 6}; SDL_RenderFillRect(renderer, &r2);
+                    SDL_Rect r3 = {ix - 7, iy + 1, 6, 6}; SDL_RenderFillRect(renderer, &r3);
+                    SDL_Rect r4 = {ix + 1, iy + 1, 6, 6}; SDL_RenderFillRect(renderer, &r4);
+                } else if (item.id == 11) { // Replays (Play Button)
                     int ix = item.x, iy = item.y;
-                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix - 4, iy + 6);
-                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix + 6, iy);
-                    SDL_RenderDrawLine(renderer, ix - 4, iy + 6, ix + 6, iy);
-                } else if (item.id == 12) { // Duo
+                    draw_filled_triangle(renderer, ix - 5, iy - 8, ix - 5, iy + 8, ix + 7, iy);
+                } else if (item.id == 12) { // Duo (Users)
                     int ix = item.x, iy = item.y;
-                    draw_filled_circle(renderer, ix - 5, iy, 4);
-                    draw_filled_circle(renderer, ix + 5, iy, 4);
+                    draw_filled_circle(renderer, ix - 4, iy - 3, 4);
+                    draw_filled_circle(renderer, ix + 4, iy - 3, 4);
+                    SDL_Rect body1 = {ix - 8, iy + 2, 8, 5}; SDL_RenderFillRect(renderer, &body1);
+                    SDL_Rect body2 = {ix, iy + 2, 8, 5}; SDL_RenderFillRect(renderer, &body2);
                 } else if (item.id == 13) { // Settings (Gear)
                     int ix = item.x, iy = item.y;
-                    draw_circle_outline(renderer, ix, iy, 8); // Inner circle
-                    // Draw 4 spokes
-                    SDL_RenderDrawLine(renderer, ix, iy - 12, ix, iy + 12);
-                    SDL_RenderDrawLine(renderer, ix - 12, iy, ix + 12, iy);
-                    // Draw diagonals
-                    SDL_RenderDrawLine(renderer, ix - 8, iy - 8, ix + 8, iy + 8);
-                    SDL_RenderDrawLine(renderer, ix - 8, iy + 8, ix + 8, iy - 8);
+                    draw_filled_circle(renderer, ix, iy, 9);
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    draw_filled_circle(renderer, ix, iy, 4);
+                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+                    for (int i = 0; i < 8; i++) {
+                        float angle = i * (3.14159f / 4.0f);
+                        int tx = ix + (int)(cosf(angle) * 9);
+                        int ty = iy + (int)(sinf(angle) * 9);
+                        SDL_Rect tooth = {tx - 2, ty - 2, 4, 4};
+                        SDL_RenderFillRect(renderer, &tooth);
+                    }
                 }
             }
         }
+        
+        // Main Button
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
+        // Shadow
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 50);
+        draw_filled_circle(renderer, x + 3, y + 3, r);
+        
+        // Outer Circle
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         draw_filled_circle(renderer, x, y, r);
         SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
         draw_circle_outline(renderer, x, y, r);
-        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 200);
+        
+        // Inner Circle (Accent)
+        SDL_SetRenderDrawColor(renderer, 34, 43, 50, 220);
         draw_filled_circle(renderer, x, y, r - 10);
+        
+        // Center Dot
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        draw_filled_circle(renderer, x, y, 4);
+        
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 };
