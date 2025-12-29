@@ -994,11 +994,14 @@ struct QuickBall {
 
     void set_layout_home() {
         items.clear();
-        // 1. Games (Left) - ID 10
+        // 4 Items Arc Layout
+        // 1. Games (Far Left) - ID 10
         items.push_back({x - 60, y - 10, 20, 10});
-        // 2. Replays (Top) - ID 11
-        items.push_back({x, y - 70, 20, 11});
-        // 3. Duo (Right) - ID 12
+        // 2. Replays (Mid Left) - ID 11
+        items.push_back({x - 25, y - 60, 20, 11});
+        // 3. Settings (Mid Right) - ID 13
+        items.push_back({x + 25, y - 60, 20, 13});
+        // 4. Duo (Far Right) - ID 12
         items.push_back({x + 60, y - 10, 20, 12});
     }
 
@@ -1059,6 +1062,14 @@ struct QuickBall {
                             home_active_panel = HOME_PANEL_LIBRARY;
                         } else if (item.id == 12) { // Duo
                             home_active_panel = HOME_PANEL_FAVORITES;
+                        } else if (item.id == 13) { // Settings
+                            scene = SCENE_SETTINGS;
+                            settings_nickname = config.get_nickname();
+                            settings_avatar_path = config.get_avatar_path();
+                            settings_recorder_enabled = config.get_gameplay_recorder_enabled();
+                            settings_loaded = true;
+                            // Collapse QuickBall when entering settings
+                            expanded = false; 
                         }
                         expanded = false;
                         return true;
@@ -1122,6 +1133,15 @@ struct QuickBall {
                     int ix = item.x, iy = item.y;
                     draw_filled_circle(renderer, ix - 5, iy, 4);
                     draw_filled_circle(renderer, ix + 5, iy, 4);
+                } else if (item.id == 13) { // Settings (Gear)
+                    int ix = item.x, iy = item.y;
+                    draw_circle_outline(renderer, ix, iy, 8); // Inner circle
+                    // Draw 4 spokes
+                    SDL_RenderDrawLine(renderer, ix, iy - 12, ix, iy + 12);
+                    SDL_RenderDrawLine(renderer, ix - 12, iy, ix + 12, iy);
+                    // Draw diagonals
+                    SDL_RenderDrawLine(renderer, ix - 8, iy - 8, ix + 8, iy + 8);
+                    SDL_RenderDrawLine(renderer, ix - 8, iy + 8, ix + 8, iy - 8);
                 }
             }
         }
@@ -1602,16 +1622,6 @@ int main(int argc, char* argv[]) {
                     int my = e.button.y;
 
 
-                    // Settings Button Click (Top Right Dots)
-                    int dots_x = SCREEN_WIDTH * SCALE - 40;
-                    int dots_y = 50;
-                    if (mx >= dots_x - 20 && mx <= dots_x + 20 && my >= dots_y - 20 && my <= dots_y + 20) {
-                        current_scene = SCENE_SETTINGS;
-                        settings_nickname = config.get_nickname();
-                        settings_avatar_path = config.get_avatar_path();
-                        settings_recorder_enabled = config.get_gameplay_recorder_enabled();
-                        settings_loaded = true;
-                    }
 
 
                     if (showing_delete_popup) {
@@ -2789,22 +2799,6 @@ int main(int argc, char* argv[]) {
             font_small.draw_text(renderer, status, 20, 80, {220, 220, 220, 255});
 
 
-            // Menu Dots (Top Right) -> Settings Icon
-            int dots_x = SCREEN_WIDTH * SCALE - 40;
-            int dots_y = 50;
-            
-            // Draw Gear Icon
-            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-            draw_circle_outline(renderer, dots_x, dots_y, 12);
-            draw_circle_outline(renderer, dots_x, dots_y, 6);
-            for(int k=0; k<8; k++) {
-                float angle = k * (3.14159f * 2 / 8);
-                int tx1 = dots_x + (int)(cos(angle) * 12);
-                int ty1 = dots_y + (int)(sin(angle) * 12);
-                int tx2 = dots_x + (int)(cos(angle) * 16);
-                int ty2 = dots_y + (int)(sin(angle) * 16);
-                SDL_RenderDrawLine(renderer, tx1, ty1, tx2, ty2);
-            }
 
             // --- CONTEXT MENU ---
             if (showing_context_menu) {

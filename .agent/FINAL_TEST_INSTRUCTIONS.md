@@ -176,9 +176,10 @@ Stop-Process -Name "nes_app" -Force -ErrorAction SilentlyContinue
 
 2.  **Navigation:**
     *   Click QuickBall → Expand.
-    *   **Left (Grid):** Go to Games.
-    *   **Top (Play):** Go to Replays.
-    *   **Right (2 Dots):** Go to Duo.
+    *   **Far Left (Grid):** Go to Games.
+    *   **Mid Left (Play):** Go to Replays.
+    *   **Mid Right (Gear):** Go to Settings.
+    *   **Far Right (2 Dots):** Go to Duo.
 
 3.  **Context Switching:**
     *   **Enter Game:** QuickBall changes to Normal layout (Share, Snapshot, Home, Timer).
