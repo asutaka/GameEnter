@@ -952,13 +952,14 @@ struct QuickBall {
     
     struct Item {
         int x, y, r;
-        int id; // 0: Share, 1: Snapshot, 2: Reset, 3: Home
+        int id; // 0: Share, 1: Snapshot, 3: Home, 4: Timer, 10: Games, 11: Replays, 12: Duo
     };
     std::vector<Item> items;
 
     void init(int start_x, int start_y) {
         set_pos(start_x, start_y);
         set_layout_normal();
+        expanded = false;
     }
 
     void set_pos(int start_x, int start_y) {
@@ -974,7 +975,7 @@ struct QuickBall {
         items.push_back({x - 40, y - 50, 20, 1});
         // 4. Home (Right)
         items.push_back({x + 60, y - 10, 20, 3});
-        // 5. Timer (Top) - Replaces Settings
+        // 5. Timer (Top)
         items.push_back({x, y - 70, 20, 4});
     }
 
@@ -985,14 +986,20 @@ struct QuickBall {
         items.push_back({x, y - 60, 20, 1});
         // 2. Home (id 3) - Above Snapshot
         items.push_back({x, y - 110, 20, 3});
-        
-        // Others (Hidden in Replay, but available in Game)
-        // 3. Reset (id 2)
-        items.push_back({x, y - 160, 20, 2});
         // 4. Timer (id 4)
         items.push_back({x, y - 210, 20, 4});
         // 5. Share (id 0)
         items.push_back({x, y - 260, 20, 0});
+    }
+
+    void set_layout_home() {
+        items.clear();
+        // 1. Games (Left) - ID 10
+        items.push_back({x - 60, y - 10, 20, 10});
+        // 2. Replays (Top) - ID 11
+        items.push_back({x, y - 70, 20, 11});
+        // 3. Duo (Right) - ID 12
+        items.push_back({x + 60, y - 10, 20, 12});
     }
 
     bool handle_event(const SDL_Event& e, Scene& scene, Emulator& emu) {
@@ -1016,17 +1023,11 @@ struct QuickBall {
                              std::cout << "[QuickBall] Share: Not Implemented" << std::endl;
                         } else if (item.id == 1) { // Snapshot
                              const uint8_t* fb = emu.get_framebuffer();
-                             // Copy framebuffer to temp buffer to ensure safety
                              std::vector<uint8_t> temp_fb(256 * 240 * 4);
                              std::memcpy(temp_fb.data(), fb, temp_fb.size());
-                             
                              SDL_Surface* ss = SDL_CreateRGBSurfaceWithFormatFrom(temp_fb.data(), 256, 240, 32, 256*4, SDL_PIXELFORMAT_RGBA32);
                              if (ss) {
-                                 // Ensure directory exists
-                                 if (!fs::exists("snapshots")) {
-                                     fs::create_directory("snapshots");
-                                 }
-
+                                 if (!fs::exists("snapshots")) fs::create_directory("snapshots");
                                  auto now = std::chrono::system_clock::now();
                                  auto in_time_t = std::chrono::system_clock::to_time_t(now);
                                  std::stringstream ss_name;
@@ -1038,14 +1039,13 @@ struct QuickBall {
                         } else if (item.id == 3) { // Home
                             recorder.stop_recording();
                             scene = SCENE_HOME;
+                            set_layout_home();
                         } else if (item.id == 4) { // Timer
                             if (!timer_running) {
-                                // Start Timer
                                 timer_running = true;
                                 timer_start_time = std::chrono::high_resolution_clock::now();
                                 timer_show_final = false;
                             } else {
-                                // Stop Timer
                                 timer_running = false;
                                 auto now = std::chrono::high_resolution_clock::now();
                                 std::chrono::duration<double> elapsed = now - timer_start_time;
@@ -1053,6 +1053,12 @@ struct QuickBall {
                                 timer_show_final = true;
                                 timer_final_display_start = now;
                             }
+                        } else if (item.id == 10) { // Games
+                            home_active_panel = HOME_PANEL_ROM_GRID;
+                        } else if (item.id == 11) { // Replays
+                            home_active_panel = HOME_PANEL_LIBRARY;
+                        } else if (item.id == 12) { // Duo
+                            home_active_panel = HOME_PANEL_FAVORITES;
                         }
                         expanded = false;
                         return true;
@@ -1078,29 +1084,44 @@ struct QuickBall {
                 draw_circle_outline(renderer, item.x, item.y, item.r);
                 
                 SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-                if (item.id == 0) { // Share (Share Icon)
+                if (item.id == 0) { // Share
                     int ix = item.x, iy = item.y;
                     draw_filled_circle(renderer, ix - 5, iy, 3);
                     draw_filled_circle(renderer, ix + 5, iy - 5, 3);
                     draw_filled_circle(renderer, ix + 5, iy + 5, 3);
                     SDL_RenderDrawLine(renderer, ix - 5, iy, ix + 5, iy - 5);
                     SDL_RenderDrawLine(renderer, ix - 5, iy, ix + 5, iy + 5);
-                } else if (item.id == 1) { // Snapshot (Camera)
+                } else if (item.id == 1) { // Snapshot
                     SDL_Rect box = {item.x - 7, item.y - 5, 14, 10};
                     SDL_RenderDrawRect(renderer, &box);
                     draw_circle_outline(renderer, item.x, item.y, 3);
                     SDL_RenderDrawPoint(renderer, item.x + 5, item.y - 7);
-                } else if (item.id == 3) { // Home (House)
+                } else if (item.id == 3) { // Home
                     int ix = item.x, iy = item.y;
                     SDL_RenderDrawLine(renderer, ix - 8, iy + 2, ix, iy - 8);
                     SDL_RenderDrawLine(renderer, ix, iy - 8, ix + 8, iy + 2);
                     SDL_Rect box = {ix - 6, iy + 2, 12, 8};
                     SDL_RenderDrawRect(renderer, &box);
-                } else if (item.id == 4) { // Timer (Clock)
+                } else if (item.id == 4) { // Timer
                     int ix = item.x, iy = item.y;
-                    draw_circle_outline(renderer, ix, iy, 12); // Clock face
-                    SDL_RenderDrawLine(renderer, ix, iy, ix, iy - 8); // Minute hand
-                    SDL_RenderDrawLine(renderer, ix, iy, ix + 6, iy); // Hour hand
+                    draw_circle_outline(renderer, ix, iy, 12);
+                    SDL_RenderDrawLine(renderer, ix, iy, ix, iy - 8);
+                    SDL_RenderDrawLine(renderer, ix, iy, ix + 6, iy);
+                } else if (item.id == 10) { // Games
+                    int ix = item.x, iy = item.y;
+                    SDL_Rect r1 = {ix - 6, iy - 6, 4, 4}; SDL_RenderFillRect(renderer, &r1);
+                    SDL_Rect r2 = {ix + 2, iy - 6, 4, 4}; SDL_RenderFillRect(renderer, &r2);
+                    SDL_Rect r3 = {ix - 6, iy + 2, 4, 4}; SDL_RenderFillRect(renderer, &r3);
+                    SDL_Rect r4 = {ix + 2, iy + 2, 4, 4}; SDL_RenderFillRect(renderer, &r4);
+                } else if (item.id == 11) { // Replays
+                    int ix = item.x, iy = item.y;
+                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix - 4, iy + 6);
+                    SDL_RenderDrawLine(renderer, ix - 4, iy - 6, ix + 6, iy);
+                    SDL_RenderDrawLine(renderer, ix - 4, iy + 6, ix + 6, iy);
+                } else if (item.id == 12) { // Duo
+                    int ix = item.x, iy = item.y;
+                    draw_filled_circle(renderer, ix - 5, iy, 4);
+                    draw_filled_circle(renderer, ix + 5, iy, 4);
                 }
             }
         }
@@ -1371,7 +1392,8 @@ int main(int argc, char* argv[]) {
     int bottom_y = (SCREEN_HEIGHT * SCALE) - 50;
 
     QuickBall quickBall;
-    quickBall.init(center_x, bottom_y); // Default to Normal Layout (Center)
+    quickBall.init(center_x, bottom_y);
+    quickBall.set_layout_home(); // Start with Home Layout
 
     std::vector<VirtualButton> buttons;
     int btn_radius = 35;
@@ -1430,11 +1452,12 @@ int main(int argc, char* argv[]) {
                         multiplayer_active = true;
                         multiplayer_frame_id = 0;
                         current_scene = SCENE_GAME;
+                        quickBall.set_layout_normal();
                     }
                 }
             }
         }
-
+        
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
                 recorder.stop_recording();
@@ -1444,6 +1467,7 @@ int main(int argc, char* argv[]) {
                 if (current_scene == SCENE_GAME) {
                     recorder.stop_recording();
                     current_scene = SCENE_HOME;
+                    quickBall.set_layout_home();
                 }
                 else {
                     recorder.stop_recording();
@@ -1537,6 +1561,11 @@ int main(int argc, char* argv[]) {
 
             // Home Screen Interactions
             if (current_scene == SCENE_HOME) {
+                // QuickBall for Home Navigation
+                if (quickBall.handle_event(e, current_scene, emu)) {
+                    // Event consumed
+                }
+
                 // Scrolling
                 if (e.type == SDL_MOUSEWHEEL && !showing_delete_popup && !showing_context_menu) {
                     if (home_active_panel == HOME_PANEL_ROM_GRID) {
@@ -1584,26 +1613,6 @@ int main(int argc, char* argv[]) {
                         settings_loaded = true;
                     }
 
-                    // Panel Tab Clicks
-                    int tab_y = 100;
-                    int tab_h = 40;
-                    int tab_w = 150;
-                    int tab_gap = 10;
-                    int tab_start_x = 20;
-                    
-                    // Check if clicked on any tab
-                    if (my >= tab_y && my <= tab_y + tab_h) {
-                        if (mx >= tab_start_x && mx <= tab_start_x + tab_w) {
-                            // ROM Grid tab
-                            home_active_panel = HOME_PANEL_ROM_GRID;
-                        } else if (mx >= tab_start_x + tab_w + tab_gap && mx <= tab_start_x + 2 * tab_w + tab_gap) {
-                            // PlayBack tab
-                            home_active_panel = HOME_PANEL_LIBRARY;
-                        } else if (mx >= tab_start_x + 2 * (tab_w + tab_gap) && mx <= tab_start_x + 3 * tab_w + 2 * tab_gap) {
-                            // Duo tab
-                            home_active_panel = HOME_PANEL_FAVORITES;
-                        }
-                    }
 
                     if (showing_delete_popup) {
                         // Handle Popup Clicks
@@ -1925,6 +1934,7 @@ int main(int argc, char* argv[]) {
                                                         // Start replay playback
                                                         replay_player.start_playback();
                                                         current_scene = SCENE_GAME;
+                                                        quickBall.set_layout_normal();
                                                         rom_found = true;
                                                         
                                                         std::cout << "✅ Started replay playback for: " << slot.name << std::endl;
@@ -2137,6 +2147,7 @@ int main(int argc, char* argv[]) {
                                 replay_player.unload_replay();
                                 
                                 current_scene = SCENE_GAME;
+                                quickBall.set_layout_normal();
                                 
                                 // Start Recording if enabled
                                 if (config.get_gameplay_recorder_enabled()) {
@@ -2182,6 +2193,7 @@ int main(int argc, char* argv[]) {
                         multiplayer_active = true;
                         multiplayer_frame_id = 0;
                         current_scene = SCENE_GAME;
+                        quickBall.set_layout_normal();
                     }
                 } else {
                     // Leave Button (Client)
@@ -2259,53 +2271,8 @@ int main(int argc, char* argv[]) {
         if (current_scene == SCENE_HOME) {
             // --- PANEL CONTAINER ---
             // Panel tabs (below header)
-            int tab_y = 100;
-            int tab_h = 40;
-            int tab_w = 150;
-            int tab_gap = 10;
-            int tab_start_x = 20;
-            
-            // Define tabs
-            struct PanelTab {
-                std::string label;
-                HomePanel panel_id;
-            };
-            std::vector<PanelTab> tabs = {
-                {"ROM Grid", HOME_PANEL_ROM_GRID},
-                {"PlayBack", HOME_PANEL_LIBRARY},
-                {"Duo", HOME_PANEL_FAVORITES}
-            };
-            
-            // Draw tabs
-            for (size_t i = 0; i < tabs.size(); i++) {
-                int tx = tab_start_x + i * (tab_w + tab_gap);
-                SDL_Rect tab_rect = {tx, tab_y, tab_w, tab_h};
-                
-                // Tab background
-                if (home_active_panel == tabs[i].panel_id) {
-                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // Active: White
-                } else {
-                    SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255); // Inactive: Light gray
-                }
-                SDL_RenderFillRect(renderer, &tab_rect);
-                
-                // Tab border
-                SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
-                SDL_RenderDrawRect(renderer, &tab_rect);
-                
-                // Tab label
-                float label_w = font_body.get_text_width(tabs[i].label);
-                int label_x = tx + (tab_w - (int)label_w) / 2;
-                int label_y = tab_y + (tab_h - 18) / 2;
-                
-                SDL_Color text_color = (home_active_panel == tabs[i].panel_id) 
-                    ? SDL_Color{34, 43, 50, 255}    // Active: Dark
-                    : SDL_Color{120, 120, 120, 255}; // Inactive: Gray
-                font_body.draw_text(renderer, tabs[i].label, label_x, label_y, text_color);
-            }
-            
             // Panel content area
-            int panel_content_y = tab_y + tab_h;
+            int panel_content_y = 140; // Fixed position since tabs are removed
             
             // Render active panel content
             if (home_active_panel == HOME_PANEL_ROM_GRID) {
@@ -2912,6 +2879,9 @@ int main(int argc, char* argv[]) {
                 SDL_RenderFillRect(renderer, &btnNo);
                 font_body.draw_text(renderer, "No", cx + 10 + 40, cy + 20 + 28, {255, 255, 255, 255});
             }
+
+            // Render QuickBall for Home Navigation
+            quickBall.render(renderer);
 
         } else if (current_scene == SCENE_LOBBY) {
             // === LOBBY SCENE ===
