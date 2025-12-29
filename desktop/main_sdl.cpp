@@ -3199,6 +3199,12 @@ int main(int argc, char* argv[]) {
                                  }
                              }
                              prev_start_pressed_host = start_pressed_host;
+                         } else {
+                             // Client: Strip Start/Select from local input
+                             local_input &= ~(1 << Input::BUTTON_START);  // Remove Start
+                             local_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
+                             // Re-apply cleaned input to P1
+                             emu.set_controller(0, local_input);
                          }
                          
                          // Check for pause/resume messages from remote
