@@ -1423,10 +1423,25 @@ int main(int argc, char* argv[]) {
         }
         
         // Poll network connection state in lobby
-        if (current_scene == SCENE_LOBBY && lobby_is_host) {
-            if (net_manager.is_connected() && !lobby_player2_connected) {
-                lobby_player2_connected = true;
-                std::cout << "✅ Player 2 connected!" << std::endl;
+        if (current_scene == SCENE_LOBBY) {
+            if (lobby_is_host) {
+                // Host: Check for P2 connection
+                if (net_manager.is_connected() && !lobby_player2_connected) {
+                    lobby_player2_connected = true;
+                    std::cout << "✅ Player 2 connected!" << std::endl;
+                }
+            } else {
+                // Client: Check for START signal from host
+                nes::NetworkManager::Packet start_packet;
+                if (net_manager.pop_remote_input(start_packet)) {
+                    if (start_packet.frame_id == 0xFFFFFFFF) {
+                        // START signal received!
+                        std::cout << "🎮 Received START from host, entering game!" << std::endl;
+                        multiplayer_active = true;
+                        multiplayer_frame_id = 0;
+                        current_scene = SCENE_GAME;
+                    }
+                }
             }
         }
 
@@ -2178,6 +2193,10 @@ int main(int argc, char* argv[]) {
                     if (lobby_player2_connected && mx >= start_btn.x && mx <= start_btn.x + start_btn.w &&
                         my >= start_btn.y && my <= start_btn.y + start_btn.h) {
                         std::cout << "🎮 Host starting game!" << std::endl;
+                        
+                        // Send START signal to client (using special frame_id)
+                        net_manager.send_input(0xFFFFFFFF, 0xFF); // START signal
+                        
                         multiplayer_active = true;
                         multiplayer_frame_id = 0;
                         current_scene = SCENE_GAME;
