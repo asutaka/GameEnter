@@ -1068,6 +1068,7 @@ struct QuickBall {
                             settings_avatar_path = config.get_avatar_path();
                             settings_recorder_enabled = config.get_gameplay_recorder_enabled();
                             settings_loaded = true;
+                            set_layout_home(); // Ensure Home layout
                             // Collapse QuickBall when entering settings
                             expanded = false; 
                         }
@@ -2220,6 +2221,11 @@ int main(int argc, char* argv[]) {
 
             // Settings Scene Interactions
             if (current_scene == SCENE_SETTINGS) {
+                // QuickBall
+                if (quickBall.handle_event(e, current_scene, emu)) {
+                    // Event consumed
+                }
+
                 if (e.type == SDL_TEXTINPUT) {
                     if (active_input_field == 0) settings_nickname += e.text.text;
                 } else if (e.type == SDL_KEYDOWN) {
@@ -2255,10 +2261,6 @@ int main(int argc, char* argv[]) {
                         settings_recorder_enabled = !settings_recorder_enabled;
                     }
 
-                    // Back Button (Top Left)
-                    if (mx >= 20 && mx <= 80 && my >= 20 && my <= 50) {
-                        current_scene = SCENE_HOME; // Return without saving (or maybe prompt?)
-                    }
                     
                     // Avatar Button
                     if (mx > 450 && mx < 550 && my > 100 && my < 200) {
@@ -2948,33 +2950,33 @@ int main(int argc, char* argv[]) {
             }
 
         } else if (current_scene == SCENE_SETTINGS) {
-            // BG
-            SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
+            // BG - Light Gray
+            SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
             SDL_RenderClear(renderer);
             
-            // Back Button
-            SDL_Rect back_btn = {20, 20, 60, 30};
-            SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-            SDL_RenderFillRect(renderer, &back_btn);
-            font_small.draw_text(renderer, "Back", 30, 25, {255, 255, 255, 255});
-
-            font_title.draw_text(renderer, "Settings", 100, 30, {255, 255, 255, 255});
+            // Title - Dark Gray
+            font_title.draw_text(renderer, "Settings", 50, 30, {50, 50, 50, 255});
             
             int start_y = 100;
             
-            // Nickname
-            font_body.draw_text(renderer, "Nickname:", 50, start_y - 25, {200, 200, 200, 255});
+            // Nickname Label - Dark Gray
+            font_body.draw_text(renderer, "Nickname:", 50, start_y - 25, {80, 80, 80, 255});
+            
+            // Nickname Input Box - White with Border
             SDL_Rect box1 = {50, start_y, 300, 30};
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderFillRect(renderer, &box1);
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+            SDL_RenderDrawRect(renderer, &box1);
+            
             if (active_input_field == 0) {
-                SDL_SetRenderDrawColor(renderer, 100, 100, 200, 255);
+                SDL_SetRenderDrawColor(renderer, 0, 120, 215, 255);
                 SDL_RenderDrawRect(renderer, &box1);
             }
-            font_body.draw_text(renderer, settings_nickname, 55, start_y + 5, {255, 255, 255, 255});
+            font_body.draw_text(renderer, settings_nickname, 55, start_y + 5, {0, 0, 0, 255});
 
             // Avatar
-            font_body.draw_text(renderer, "Avatar:", 450, start_y - 25, {200, 200, 200, 255});
+            font_body.draw_text(renderer, "Avatar:", 450, start_y - 25, {80, 80, 80, 255});
             SDL_Rect avatar_box = {450, start_y, 100, 100};
             
             // Render Avatar Image if available
@@ -2987,17 +2989,17 @@ int main(int argc, char* argv[]) {
                 SDL_RenderCopy(renderer, avatar_tex, NULL, &avatar_box);
                 SDL_DestroyTexture(avatar_tex); // Clean up immediately as we reload every frame (inefficient but simple for now)
             } else {
-                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
                 SDL_RenderFillRect(renderer, &avatar_box);
-                font_small.draw_text(renderer, "Click to change", 455, start_y + 40, {150, 150, 150, 255});
+                font_small.draw_text(renderer, "Click to change", 455, start_y + 40, {100, 100, 100, 255});
             }
-            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Border
+            SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255); // Border
             SDL_RenderDrawRect(renderer, &avatar_box);
             
             // Gameplay Recorder Checkbox
             int cb_y = 220;
             SDL_Rect cb_box = {50, cb_y, 20, 20};
-            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+            SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
             SDL_RenderDrawRect(renderer, &cb_box);
             if (settings_recorder_enabled) {
                 SDL_SetRenderDrawColor(renderer, 0, 200, 0, 255);
@@ -3007,13 +3009,16 @@ int main(int argc, char* argv[]) {
                 SDL_RenderDrawLine(renderer, 50 + 4, cb_y + 10, 50 + 8, cb_y + 16);
                 SDL_RenderDrawLine(renderer, 50 + 8, cb_y + 16, 50 + 16, cb_y + 4);
             }
-            font_body.draw_text(renderer, "Enable Gameplay Recorder", 80, cb_y, {255, 255, 255, 255});
+            font_body.draw_text(renderer, "Enable Gameplay Recorder", 80, cb_y, {0, 0, 0, 255});
 
             // Save Button
             SDL_Rect save_btn = {50, 300, 100, 40};
             SDL_SetRenderDrawColor(renderer, 0, 150, 0, 255);
             SDL_RenderFillRect(renderer, &save_btn);
             font_body.draw_text(renderer, "Save", 75, 310, {255, 255, 255, 255});
+
+            // Render QuickBall
+            quickBall.render(renderer);
 
 
         } else {
