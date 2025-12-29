@@ -3269,7 +3269,16 @@ int main(int argc, char* argv[]) {
 
             if (connected_controllers.empty() && !is_replaying) {
                 joystick.render(renderer);
-                for (auto& b : buttons) b.render(renderer);
+                // Render buttons, but hide Start/Select for client in multiplayer
+                for (auto& b : buttons) {
+                    // Skip Start and Select buttons if client in multiplayer
+                    if (multiplayer_active && !lobby_is_host) {
+                        if (b.nes_button_mapping == Input::BUTTON_START || b.nes_button_mapping == Input::BUTTON_SELECT) {
+                            continue; // Skip rendering
+                        }
+                    }
+                    b.render(renderer);
+                }
             }
             quickBall.render(renderer);
             
