@@ -3200,8 +3200,7 @@ int main(int argc, char* argv[]) {
                              }
                              prev_start_pressed_host = start_pressed_host;
                          } else {
-                             // Client: Strip Start/Select from local input
-                             local_input &= ~(1 << Input::BUTTON_START);  // Remove Start
+                             // Client: Strip Select from local input (Start is allowed for menu/intro)
                              local_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
                              // Re-apply cleaned input to P1
                              emu.set_controller(0, local_input);
@@ -3269,12 +3268,12 @@ int main(int argc, char* argv[]) {
 
             if (connected_controllers.empty() && !is_replaying) {
                 joystick.render(renderer);
-                // Render buttons, but hide Start/Select for client in multiplayer
+                // Render buttons, but hide Select for client in multiplayer
                 for (auto& b : buttons) {
-                    // Skip Start and Select buttons if client in multiplayer
+                    // Skip Select button if client in multiplayer (Start is allowed for menu/intro)
                     if (multiplayer_active && !lobby_is_host) {
-                        if (b.nes_button_mapping == Input::BUTTON_START || b.nes_button_mapping == Input::BUTTON_SELECT) {
-                            continue; // Skip rendering
+                        if (b.nes_button_mapping == Input::BUTTON_SELECT) {
+                            continue; // Skip rendering Select
                         }
                     }
                     b.render(renderer);
