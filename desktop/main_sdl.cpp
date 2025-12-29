@@ -3212,7 +3212,11 @@ int main(int argc, char* argv[]) {
                                  std::cout << "▶️ Remote player resumed game" << std::endl;
                              } else {
                                  // Regular input - set as P2
-                                 emu.set_controller(1, remote_packet.input_state);
+                                 // Strip out Start and Select buttons (only host controls these)
+                                 uint8_t p2_input = remote_packet.input_state;
+                                 p2_input &= ~(1 << Input::BUTTON_START);  // Remove Start
+                                 p2_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
+                                 emu.set_controller(1, p2_input);
                              }
                          }
                          
