@@ -2054,6 +2054,58 @@ int main(int argc, char* argv[]) {
                                     discovery.stop_advertising();
                                 }
                             }
+                            
+                            // Check Connect button clicks in host list
+                            auto available_hosts = discovery.get_peers();
+                            int hosts_section_y = panel_content_y + 240; // After CREATE HOST section
+                            int item_y = hosts_section_y + 60; // After "AVAILABLE HOSTS" title
+                            int item_h = 70;
+                            int item_margin = 10;
+                            
+                            for (size_t i = 0; i < available_hosts.size() && i < 3; i++) {
+                                const auto& host = available_hosts[i];
+                                
+                                // Check if we have this ROM
+                                bool has_rom = false;
+                                for (const auto& slot : slots) {
+                                    if (slot.occupied && slot.rom_path == host.rom_path) {
+                                        has_rom = true;
+                                        break;
+                                    }
+                                }
+                                
+                                // Connect button bounds
+                                SDL_Rect connect_btn = {content_x + content_width - 100, item_y + 20, 90, 30};
+                                
+                                if (has_rom && mx >= connect_btn.x && mx <= connect_btn.x + connect_btn.w &&
+                                    my >= connect_btn.y && my <= connect_btn.y + connect_btn.h) {
+                                    std::cout << "🔗 Connecting to host: " << host.username << std::endl;
+                                    
+                                    // Set lobby state as client
+                                    lobby_is_host = false;
+                                    lobby_rom_path = host.rom_path;
+                                    lobby_rom_name = host.game_name;
+                                    lobby_host_name = host.username;
+                                    
+                                    // Connect to host
+                                    net_manager.connect_to(host.ip, host.port);
+                                    std::cout << "🌐 Connecting to " << host.ip << ":" << host.port << std::endl;
+                                    
+                                    // Load ROM
+                                    if (emu.load_rom(lobby_rom_path.c_str())) {
+                                        emu.reset();
+                                        std::cout << "✅ ROM loaded, entering lobby as client..." << std::endl;
+                                        current_scene = SCENE_LOBBY;
+                                        lobby_player2_connected = true; // We are P2
+                                    } else {
+                                        std::cerr << "❌ Failed to load ROM!" << std::endl;
+                                        net_manager.disconnect();
+                                    }
+                                    break;
+                                }
+                                
+                                item_y += item_h + item_margin;
+                            }
                         }
                     }
                 }
