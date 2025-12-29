@@ -940,8 +940,7 @@ enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_LOBBY };
 enum HomePanel { 
     HOME_PANEL_ROM_GRID = 0,  // Default panel showing ROM grid
     HOME_PANEL_LIBRARY = 1,   // PlayBack (formerly Library)
-    HOME_PANEL_FAVORITES = 2, // Duo (formerly Favorites)
-    HOME_PANEL_TOURNAMENT = 3 // Tournament
+    HOME_PANEL_FAVORITES = 2  // Duo (formerly Favorites)
 };
 
 int home_active_panel = HOME_PANEL_ROM_GRID; // Track current active panel
@@ -1619,9 +1618,6 @@ int main(int argc, char* argv[]) {
                         } else if (mx >= tab_start_x + 2 * (tab_w + tab_gap) && mx <= tab_start_x + 3 * tab_w + 2 * tab_gap) {
                             // Duo tab
                             home_active_panel = HOME_PANEL_FAVORITES;
-                        } else if (mx >= tab_start_x + 3 * (tab_w + tab_gap) && mx <= tab_start_x + 4 * tab_w + 3 * tab_gap) {
-                            // Tournament tab
-                            home_active_panel = HOME_PANEL_TOURNAMENT;
                         }
                     }
 
@@ -2293,8 +2289,7 @@ int main(int argc, char* argv[]) {
             std::vector<PanelTab> tabs = {
                 {"ROM Grid", HOME_PANEL_ROM_GRID},
                 {"PlayBack", HOME_PANEL_LIBRARY},
-                {"Duo", HOME_PANEL_FAVORITES},
-                {"Tournament", HOME_PANEL_TOURNAMENT}
+                {"Duo", HOME_PANEL_FAVORITES}
             };
             
             // Draw tabs
@@ -2819,15 +2814,8 @@ int main(int argc, char* argv[]) {
                         list_y += item_h + 10;
                     }
                 }
-
-            } else if (home_active_panel == HOME_PANEL_TOURNAMENT) {
-                // --- TOURNAMENT PANEL (Placeholder) ---
-                int cx = (SCREEN_WIDTH * SCALE) / 2;
-                int cy = (SCREEN_HEIGHT * SCALE) / 2;
-                
-                font_title.draw_text(renderer, "Tournament", cx - 90, cy - 50, {100, 100, 100, 255});
-                font_body.draw_text(renderer, "Tournament brackets coming soon...", cx - 130, cy, {150, 150, 150, 255});
             }
+
 
             // --- HEADER (Draw last to be on top of scrolling content) ---
             // Gradient Header: Deep Dark
