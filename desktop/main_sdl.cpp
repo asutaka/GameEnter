@@ -41,6 +41,11 @@ NetworkDiscovery discovery;
 // Global Config Manager
 ConfigManager config;
 
+// Multiplayer Message Types
+#define MSG_START_GAME  0xFFFFFFFF  // Signal to start game
+#define MSG_PAUSE_GAME  0xFFFFFFFE  // Signal to pause game
+#define MSG_RESUME_GAME 0xFFFFFFFD  // Signal to resume game
+
 // Timer State
 bool timer_running = false;
 std::chrono::time_point<std::chrono::high_resolution_clock> timer_start_time;
@@ -1372,6 +1377,7 @@ int main(int argc, char* argv[]) {
     // Multiplayer Game State
     bool multiplayer_active = false;
     uint32_t multiplayer_frame_id = 0;
+    bool multiplayer_paused = false;
     
     // --- UI SETUP ---
     VirtualJoystick joystick;
@@ -1434,7 +1440,7 @@ int main(int argc, char* argv[]) {
                 // Client: Check for START signal from host
                 nes::NetworkManager::Packet start_packet;
                 if (net_manager.pop_remote_input(start_packet)) {
-                    if (start_packet.frame_id == 0xFFFFFFFF) {
+                    if (start_packet.frame_id == MSG_START_GAME) {
                         // START signal received!
                         std::cout << "🎮 Received START from host, entering game!" << std::endl;
                         multiplayer_active = true;
@@ -2194,8 +2200,8 @@ int main(int argc, char* argv[]) {
                         my >= start_btn.y && my <= start_btn.y + start_btn.h) {
                         std::cout << "🎮 Host starting game!" << std::endl;
                         
-                        // Send START signal to client (using special frame_id)
-                        net_manager.send_input(0xFFFFFFFF, 0xFF); // START signal
+                        // Send START signal to client
+                        net_manager.send_input(MSG_START_GAME, 0xFF);
                         
                         multiplayer_active = true;
                         multiplayer_frame_id = 0;
@@ -3176,20 +3182,47 @@ int main(int argc, char* argv[]) {
                          // Get current P1 input state
                          uint8_t local_input = emu.get_controller_state(0);
                          
-                         // Send local input
-                         net_manager.send_input(multiplayer_frame_id, local_input);
+                         // Check for Start button press (pause/resume)
+                         static bool prev_start_pressed = false;
+                         bool start_pressed = (local_input & (1 << Input::BUTTON_START)) != 0;
+                         if (start_pressed && !prev_start_pressed) {
+                             // Start button just pressed - toggle pause
+                             multiplayer_paused = !multiplayer_paused;
+                             if (multiplayer_paused) {
+                                 std::cout << "⏸️ Pausing game..." << std::endl;
+                                 net_manager.send_input(MSG_PAUSE_GAME, 0);
+                             } else {
+                                 std::cout << "▶️ Resuming game..." << std::endl;
+                                 net_manager.send_input(MSG_RESUME_GAME, 0);
+                             }
+                         }
+                         prev_start_pressed = start_pressed;
                          
-                         // Try to get remote input
+                         // Check for pause/resume messages from remote
                          nes::NetworkManager::Packet remote_packet;
-                         if (net_manager.pop_remote_input(remote_packet)) {
-                             // Got remote input, set it as P2
-                             emu.set_controller(1, remote_packet.input_state);
+                         while (net_manager.pop_remote_input(remote_packet)) {
+                             if (remote_packet.frame_id == MSG_PAUSE_GAME) {
+                                 multiplayer_paused = true;
+                                 std::cout << "⏸️ Remote player paused game" << std::endl;
+                             } else if (remote_packet.frame_id == MSG_RESUME_GAME) {
+                                 multiplayer_paused = false;
+                                 std::cout << "▶️ Remote player resumed game" << std::endl;
+                             } else {
+                                 // Regular input - set as P2
+                                 emu.set_controller(1, remote_packet.input_state);
+                             }
                          }
                          
-                         // Run frame
-                         emu.run_frame();
-                         emulator_ran = true;
-                         multiplayer_frame_id++;
+                         // Only run frame if not paused
+                         if (!multiplayer_paused) {
+                             // Send local input
+                             net_manager.send_input(multiplayer_frame_id, local_input);
+                             
+                             // Run frame
+                             emu.run_frame();
+                             emulator_ran = true;
+                             multiplayer_frame_id++;
+                         }
                      } else {
                          // Single player mode
                          emu.run_frame();
