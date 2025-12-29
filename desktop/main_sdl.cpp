@@ -934,7 +934,7 @@ void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joyst
     recorder.record_frame(p1_buttons, p2_buttons);
 }
 
-enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_MULTIPLAYER_LOBBY, SCENE_LOBBY };
+enum Scene { SCENE_HOME, SCENE_GAME, SCENE_SETTINGS, SCENE_LOBBY };
 
 // Home Screen Panels
 enum HomePanel { 
@@ -1589,11 +1589,6 @@ int main(int argc, char* argv[]) {
                     int mx = e.button.x;
                     int my = e.button.y;
 
-                    // Multiplayer Button Click
-                    if (mx >= 15 && mx <= 115 && my >= 15 && my <= 45) {
-                        current_scene = SCENE_MULTIPLAYER_LOBBY;
-                        discovery.start_advertising(config.get_device_id(), config.get_nickname(), "Menu", "", 6502);
-                    }
 
                     // Settings Button Click (Top Right Dots)
                     int dots_x = SCREEN_WIDTH * SCALE - 40;
@@ -2276,18 +2271,6 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            // Multiplayer Lobby Interactions
-            if (current_scene == SCENE_MULTIPLAYER_LOBBY) {
-                if (e.type == SDL_MOUSEBUTTONDOWN) {
-                    int mx = e.button.x;
-                    int my = e.button.y;
-                    // Back Button
-                    if (mx >= 20 && mx <= 80 && my >= 20 && my <= 50) {
-                        discovery.stop_advertising();
-                        current_scene = SCENE_HOME;
-                    }
-                }
-            }
         }
 
         SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255); // White BG
@@ -2866,11 +2849,6 @@ int main(int argc, char* argv[]) {
             std::string status = connected_controllers.empty() ? "No devices connected, play by touch." : "Gamepad connected.";
             font_small.draw_text(renderer, status, 20, 80, {220, 220, 220, 255});
 
-            // Multiplayer Button (Top Left)
-            font_small.draw_text(renderer, "Multiplayer", 20, 20, {255, 255, 255, 255});
-            SDL_Rect mp_btn = {15, 15, 100, 30};
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
-            SDL_RenderDrawRect(renderer, &mp_btn);
 
             // Menu Dots (Top Right) -> Settings Icon
             int dots_x = SCREEN_WIDTH * SCALE - 40;
@@ -3101,29 +3079,6 @@ int main(int argc, char* argv[]) {
             SDL_RenderFillRect(renderer, &save_btn);
             font_body.draw_text(renderer, "Save", 75, 310, {255, 255, 255, 255});
 
-        } else if (current_scene == SCENE_MULTIPLAYER_LOBBY) {
-             SDL_SetRenderDrawColor(renderer, 20, 20, 40, 255);
-             SDL_RenderClear(renderer);
-             font_title.draw_text(renderer, "Lobby", 100, 30, {255, 255, 255, 255});
-             
-             // Back Button
-             SDL_Rect back_btn = {20, 20, 60, 30};
-             SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-             SDL_RenderFillRect(renderer, &back_btn);
-             font_small.draw_text(renderer, "Back", 30, 25, {255, 255, 255, 255});
-
-             // List Peers
-             auto peers = discovery.get_peers();
-             int y = 100;
-             if (peers.empty()) {
-                 font_body.draw_text(renderer, "Scanning for players...", 50, y, {150, 150, 150, 255});
-             } else {
-                 for (const auto& peer : peers) {
-                     std::string info = peer.username + " (" + peer.game_name + ")";
-                     font_body.draw_text(renderer, info, 50, y, {255, 255, 255, 255});
-                     y += 30;
-                 }
-             }
 
         } else {
             // --- GAME SCENE ---
