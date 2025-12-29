@@ -2142,6 +2142,44 @@ int main(int argc, char* argv[]) {
                 }
             }
 
+            // Lobby Scene Interactions
+            if (current_scene == SCENE_LOBBY && e.type == SDL_MOUSEBUTTONDOWN) {
+                int mx = e.button.x;
+                int my = e.button.y;
+                int cx = (SCREEN_WIDTH * SCALE) / 2;
+                int cy = (SCREEN_HEIGHT * SCALE) / 2;
+                
+                if (lobby_is_host) {
+                    // Cancel Button
+                    SDL_Rect cancel_btn = {cx - 200, cy + 150, 100, 40};
+                    if (mx >= cancel_btn.x && mx <= cancel_btn.x + cancel_btn.w &&
+                        my >= cancel_btn.y && my <= cancel_btn.y + cancel_btn.h) {
+                        std::cout << "❌ Host cancelled lobby" << std::endl;
+                        discovery.stop_advertising();
+                        net_manager.disconnect();
+                        current_scene = SCENE_HOME;
+                        home_active_panel = HOME_PANEL_FAVORITES;
+                    }
+                    
+                    // Start Button
+                    SDL_Rect start_btn = {cx + 100, cy + 150, 100, 40};
+                    if (lobby_player2_connected && mx >= start_btn.x && mx <= start_btn.x + start_btn.w &&
+                        my >= start_btn.y && my <= start_btn.y + start_btn.h) {
+                        std::cout << "🎮 Host starting game!" << std::endl;
+                        current_scene = SCENE_GAME;
+                    }
+                } else {
+                    // Leave Button (Client)
+                    SDL_Rect leave_btn = {cx - 50, cy + 150, 100, 40};
+                    if (mx >= leave_btn.x && mx <= leave_btn.x + leave_btn.w &&
+                        my >= leave_btn.y && my <= leave_btn.y + leave_btn.h) {
+                        std::cout << "❌ Client left lobby" << std::endl;
+                        net_manager.disconnect();
+                        current_scene = SCENE_HOME;
+                        home_active_panel = HOME_PANEL_FAVORITES;
+                    }
+                }
+            }
 
             // Settings Scene Interactions
             if (current_scene == SCENE_SETTINGS) {
