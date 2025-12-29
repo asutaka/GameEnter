@@ -2033,6 +2033,10 @@ int main(int argc, char* argv[]) {
                                 std::cout << "   ROM: " << duo_selected_rom_name << std::endl;
                                 std::cout << "   Path: " << duo_selected_rom_path << std::endl;
                                 
+                                // Start TCP server
+                                net_manager.start_host(6503);
+                                std::cout << "🌐 TCP server started on port 6503" << std::endl;
+                                
                                 // Transition to Lobby
                                 lobby_is_host = true;
                                 lobby_player2_connected = false;
