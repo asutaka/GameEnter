@@ -48,6 +48,13 @@ public:
     void set_controller(int controller, uint8_t buttons);
     
     /**
+     * @brief Get controller input state
+     * @param controller 0 hoặc 1
+     * @return Current button state as bit mask
+     */
+    uint8_t get_controller_state(int controller) const;
+    
+    /**
      * @brief Get audio samples generated in the last frame
      */
     const std::vector<float>& get_audio_samples() const;

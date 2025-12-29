@@ -3153,9 +3153,9 @@ int main(int argc, char* argv[]) {
                      handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
                      
                      if (multiplayer_active && net_manager.is_connected()) {
-                         // Multiplayer Mode: Simplified for demo
-                         // TODO: Proper input capture needed
-                         uint8_t local_input = 0; // Placeholder
+                         // Multiplayer Mode: Lockstep synchronization
+                         // Get current P1 input state
+                         uint8_t local_input = emu.get_controller_state(0);
                          
                          // Send local input
                          net_manager.send_input(multiplayer_frame_id, local_input);

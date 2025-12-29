@@ -114,6 +114,10 @@ void Emulator::set_controller(int controller, uint8_t buttons) {
     }
 }
 
+uint8_t Emulator::get_controller_state(int controller) const {
+    return input_.get_controller_state(controller);
+}
+
 const std::vector<float>& Emulator::get_audio_samples() const {
     return audio_samples_;
 }

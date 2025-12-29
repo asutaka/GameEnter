@@ -47,6 +47,13 @@ public:
      * @param pressed True if pressed, false otherwise
      */
     void set_button_state(int controller_id, int button, bool pressed);
+    
+    /**
+     * @brief Get the current state of a controller
+     * @param controller_id 0 for Player 1, 1 for Player 2
+     * @return Button state as bit mask
+     */
+    uint8_t get_controller_state(int controller_id) const;
 
     // Button mapping indices
     static constexpr int BUTTON_A      = 0;

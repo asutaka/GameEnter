@@ -89,4 +89,13 @@ void Input::set_button_state(int controller_id, int button, bool pressed) {
     }
 }
 
+uint8_t Input::get_controller_state(int controller_id) const {
+    if (controller_id == 0) {
+        return controller1_state_;
+    } else if (controller_id == 1) {
+        return controller2_state_;
+    }
+    return 0;
+}
+
 } // namespace nes
