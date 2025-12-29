@@ -1057,10 +1057,13 @@ struct QuickBall {
                                 timer_final_display_start = now;
                             }
                         } else if (item.id == 10) { // Games
+                            scene = SCENE_HOME;
                             home_active_panel = HOME_PANEL_ROM_GRID;
                         } else if (item.id == 11) { // Replays
+                            scene = SCENE_HOME;
                             home_active_panel = HOME_PANEL_LIBRARY;
                         } else if (item.id == 12) { // Duo
+                            scene = SCENE_HOME;
                             home_active_panel = HOME_PANEL_FAVORITES;
                         } else if (item.id == 13) { // Settings
                             scene = SCENE_SETTINGS;
