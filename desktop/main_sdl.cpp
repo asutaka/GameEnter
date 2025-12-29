@@ -3062,7 +3062,7 @@ int main(int argc, char* argv[]) {
 
         } else if (current_scene == SCENE_LOBBY) {
             // === LOBBY SCENE ===
-            SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
+            SDL_SetRenderDrawColor(renderer, 245, 246, 247, 255);
             SDL_RenderClear(renderer);
             
             int cx = (SCREEN_WIDTH * SCALE) / 2;
@@ -3070,64 +3070,72 @@ int main(int argc, char* argv[]) {
             
             // Title
             std::string title = lobby_is_host ? "Hosting: " + lobby_host_name : "Joining: " + lobby_host_name;
-            font_title.draw_text(renderer, title, cx - 150, 100, {50, 50, 50, 255});
+            font_title.draw_text(renderer, title, cx - font_title.get_text_width(title)/2, 100, {34, 43, 50, 255});
             
             // ROM Info
-            std::string rom_info = "ROM: " + lobby_rom_name;
-            font_body.draw_text(renderer, rom_info, cx - 100, 150, {100, 100, 100, 255});
+            std::string rom_info = "Game: " + lobby_rom_name;
+            font_body.draw_text(renderer, rom_info, cx - font_body.get_text_width(rom_info)/2, 150, {100, 100, 100, 255});
             
-            // Players Box
-            SDL_Rect players_box = {cx - 200, cy - 100, 400, 200};
+            // Players Card (Premium Style)
+            SDL_Rect players_box = {cx - 220, cy - 100, 440, 200};
+            // Shadow
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 15);
+            SDL_Rect shadow = {players_box.x + 4, players_box.y + 4, players_box.w, players_box.h};
+            SDL_RenderFillRect(renderer, &shadow);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderFillRect(renderer, &players_box);
-            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+            SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255);
             SDL_RenderDrawRect(renderer, &players_box);
             
             // Player 1 (Host)
-            SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
-            draw_filled_circle(renderer, players_box.x + 30, players_box.y + 50, 10);
+            SDL_SetRenderDrawColor(renderer, 46, 204, 113, 255); // Emerald Green
+            draw_filled_circle_aa(renderer, players_box.x + 40, players_box.y + 60, 8);
             std::string p1_text = lobby_is_host ? lobby_host_name + " (You)" : lobby_host_name;
-            font_body.draw_text(renderer, "🎮 Player 1: " + p1_text, players_box.x + 50, players_box.y + 40, {50, 50, 50, 255});
+            font_body.draw_text(renderer, "Player 1: " + p1_text, players_box.x + 65, players_box.y + 70, {34, 43, 50, 255});
             
             // Player 2 (Client)
             if (lobby_player2_connected) {
-                SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
-                draw_filled_circle(renderer, players_box.x + 30, players_box.y + 120, 10);
+                SDL_SetRenderDrawColor(renderer, 46, 204, 113, 255);
+                draw_filled_circle_aa(renderer, players_box.x + 40, players_box.y + 130, 8);
                 std::string p2_text = lobby_is_host ? "Player 2" : "You";
-                font_body.draw_text(renderer, "🎮 Player 2: " + p2_text, players_box.x + 50, players_box.y + 110, {50, 50, 50, 255});
+                font_body.draw_text(renderer, "Player 2: " + p2_text, players_box.x + 65, players_box.y + 140, {34, 43, 50, 255});
             } else {
-                SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
-                draw_filled_circle(renderer, players_box.x + 30, players_box.y + 120, 10);
-                font_body.draw_text(renderer, "⏳ Waiting for Player 2...", players_box.x + 50, players_box.y + 110, {150, 150, 150, 255});
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                draw_filled_circle_aa(renderer, players_box.x + 40, players_box.y + 130, 8);
+                font_body.draw_text(renderer, "Waiting for Player 2...", players_box.x + 65, players_box.y + 140, {150, 150, 150, 255});
             }
             
             // Buttons
             if (lobby_is_host) {
                 // Cancel Button
-                SDL_Rect cancel_btn = {cx - 200, cy + 150, 100, 40};
-                SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255);
+                SDL_Rect cancel_btn = {cx - 180, cy + 150, 120, 45};
+                SDL_SetRenderDrawColor(renderer, 231, 76, 60, 255); // Alizarin Red
                 SDL_RenderFillRect(renderer, &cancel_btn);
-                font_body.draw_text(renderer, "Cancel", cancel_btn.x + 25, cancel_btn.y + 10, {255, 255, 255, 255});
+                font_body.draw_text(renderer, "Cancel", cancel_btn.x + (120 - font_body.get_text_width("Cancel"))/2, cancel_btn.y + 30, {255, 255, 255, 255});
                 
-                // Start Button (enabled only if P2 connected)
-                SDL_Rect start_btn = {cx + 100, cy + 150, 100, 40};
+                // Start Button
+                SDL_Rect start_btn = {cx + 60, cy + 150, 120, 45};
                 if (lobby_player2_connected) {
-                    SDL_SetRenderDrawColor(renderer, 50, 200, 100, 255);
+                    SDL_SetRenderDrawColor(renderer, 46, 204, 113, 255);
                 } else {
-                    SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255);
+                    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
                 }
                 SDL_RenderFillRect(renderer, &start_btn);
                 SDL_Color start_color = lobby_player2_connected ? SDL_Color{255, 255, 255, 255} : SDL_Color{220, 220, 220, 255};
-                font_body.draw_text(renderer, "Start", start_btn.x + 30, start_btn.y + 10, start_color);
+                font_body.draw_text(renderer, "Start", start_btn.x + (120 - font_body.get_text_width("Start"))/2, start_btn.y + 30, start_color);
             } else {
                 // Leave Button (Client)
-                SDL_Rect leave_btn = {cx - 50, cy + 150, 100, 40};
-                SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255);
+                SDL_Rect leave_btn = {cx - 60, cy + 150, 120, 45};
+                SDL_SetRenderDrawColor(renderer, 231, 76, 60, 255);
                 SDL_RenderFillRect(renderer, &leave_btn);
-                font_body.draw_text(renderer, "Leave", leave_btn.x + 30, leave_btn.y + 10, {255, 255, 255, 255});
+                font_body.draw_text(renderer, "Leave", leave_btn.x + (120 - font_body.get_text_width("Leave"))/2, leave_btn.y + 30, {255, 255, 255, 255});
                 
                 // Status
-                font_small.draw_text(renderer, "Waiting for host to start...", cx - 100, cy + 120, {120, 120, 120, 255});
+                std::string wait_msg = "Waiting for host to start...";
+                font_small.draw_text(renderer, wait_msg, cx - font_small.get_text_width(wait_msg)/2, cy + 125, {120, 120, 120, 255});
             }
 
         } else if (current_scene == SCENE_SETTINGS) {
