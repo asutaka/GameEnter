@@ -1016,15 +1016,15 @@ struct QuickBall {
 
     void set_layout_normal() {
         items.clear();
-        // Expand Upwards (Fan out)
-        // 1. Share (Left)
-        items.push_back({x - 60, y - 10, 20, 0});
-        // 2. Snapshot (Up-Left)
-        items.push_back({x - 40, y - 50, 20, 1});
-        // 4. Home (Right)
-        items.push_back({x + 60, y - 10, 20, 3});
-        // 5. Timer (Top)
-        items.push_back({x, y - 70, 20, 4});
+        // 4 Items Arc Layout (Reordered to match Home style)
+        // 1. Home (Far Left) - ID 3
+        items.push_back({x - 60, y - 10, 20, 3});
+        // 2. Timer (Mid Left) - ID 4
+        items.push_back({x - 25, y - 60, 20, 4});
+        // 3. Snapshot (Mid Right) - ID 1
+        items.push_back({x + 25, y - 60, 20, 1});
+        // 4. Share (Far Right) - ID 0
+        items.push_back({x + 60, y - 10, 20, 0});
     }
 
     void set_layout_replay() {
@@ -1042,15 +1042,15 @@ struct QuickBall {
 
     void set_layout_home() {
         items.clear();
-        // 4 Items Arc Layout
+        // 4 Items Arc Layout (Reordered)
         // 1. Games (Far Left) - ID 10
         items.push_back({x - 60, y - 10, 20, 10});
-        // 2. Replays (Mid Left) - ID 11
-        items.push_back({x - 25, y - 60, 20, 11});
+        // 2. Duo (Mid Left) - ID 12
+        items.push_back({x - 25, y - 60, 20, 12});
         // 3. Settings (Mid Right) - ID 13
         items.push_back({x + 25, y - 60, 20, 13});
-        // 4. Duo (Far Right) - ID 12
-        items.push_back({x + 60, y - 10, 20, 12});
+        // 4. Replays (Far Right) - ID 11
+        items.push_back({x + 60, y - 10, 20, 11});
     }
 
     bool handle_event(const SDL_Event& e, Scene& scene, Emulator& emu) {
@@ -1212,19 +1212,21 @@ struct QuickBall {
                     draw_filled_circle(renderer, ix + 4, iy - 3, 4);
                     SDL_Rect body1 = {ix - 8, iy + 2, 8, 5}; SDL_RenderFillRect(renderer, &body1);
                     SDL_Rect body2 = {ix, iy + 2, 8, 5}; SDL_RenderFillRect(renderer, &body2);
-                } else if (item.id == 13) { // Settings (Gear)
+                } else if (item.id == 13) { // Settings (Modern Cog)
                     int ix = item.x, iy = item.y;
-                    draw_filled_circle(renderer, ix, iy, 9);
-                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                    draw_filled_circle(renderer, ix, iy, 4);
-                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
-                    for (int i = 0; i < 8; i++) {
-                        float angle = i * (3.14159f / 4.0f);
-                        int tx = ix + (int)(cosf(angle) * 9);
-                        int ty = iy + (int)(sinf(angle) * 9);
-                        SDL_Rect tooth = {tx - 2, ty - 2, 4, 4};
-                        SDL_RenderFillRect(renderer, &tooth);
+                    // Main body
+                    draw_filled_circle(renderer, ix, iy, 7);
+                    // 6 Rounded teeth for a modern "flower" cog look
+                    for (int i = 0; i < 6; i++) {
+                        float angle = i * (3.14159f / 3.0f);
+                        int tx = ix + (int)(cosf(angle) * 7);
+                        int ty = iy + (int)(sinf(angle) * 7);
+                        draw_filled_circle(renderer, tx, ty, 3);
                     }
+                    // Inner hole
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    draw_filled_circle(renderer, ix, iy, 3);
+                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
                 }
             }
         }
@@ -2483,12 +2485,14 @@ int main(int argc, char* argv[]) {
                         font_body.draw_text(renderer, display_name, tx, sy + slot_h - 40, {34, 43, 50, 255});
 
                         // Draw 3 Dots Menu Icon (Top Right)
-                    int dx = sx + slot_w - 20;
-                    int dy = sy + 25;
-                    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+                        int dx = sx + slot_w - 20;
+                        int dy = sy + 25;
+                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                        SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255); // Premium Dark Slate
                         draw_filled_circle(renderer, dx, dy - 6, 3);
                         draw_filled_circle(renderer, dx, dy, 3);
                         draw_filled_circle(renderer, dx, dy + 6, 3);
+                        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
                     }
                 }
             } else if (home_active_panel == HOME_PANEL_LIBRARY) {
@@ -2877,18 +2881,11 @@ int main(int argc, char* argv[]) {
 
 
             // --- HEADER (Draw last to be on top of scrolling content) ---
-            // Gradient Header: Deep Dark
-            // Start: #222B32 (34, 43, 50)
-            // End:   #263238 (38, 50, 56)
+            // Solid Header: Premium Dark Slate (34, 43, 50)
             int header_h = 100;
-            for (int y = 0; y < header_h; y++) {
-                float t = (float)y / (float)header_h;
-                Uint8 r = (Uint8)(34 + t * (38 - 34));
-                Uint8 g = (Uint8)(43 + t * (50 - 43));
-                Uint8 b = (Uint8)(50 + t * (56 - 50));
-                SDL_SetRenderDrawColor(renderer, r, g, b, 255);
-                SDL_RenderDrawLine(renderer, 0, y, SCREEN_WIDTH * SCALE, y);
-            }
+            SDL_Rect header_rect = {0, 0, SCREEN_WIDTH * SCALE, header_h};
+            SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+            SDL_RenderFillRect(renderer, &header_rect);
 
             // Title
             font_title.draw_text(renderer, "Game Enter NES", 20, 50, {255, 255, 255, 255});
