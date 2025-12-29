@@ -1369,6 +1369,10 @@ int main(int argc, char* argv[]) {
     std::string lobby_rom_name = "";
     std::string lobby_host_name = "";
     
+    // Multiplayer Game State
+    bool multiplayer_active = false;
+    uint32_t multiplayer_frame_id = 0;
+    
     // --- UI SETUP ---
     VirtualJoystick joystick;
     joystick.init(100, (SCREEN_HEIGHT * SCALE) - 100, 60);
@@ -2174,6 +2178,8 @@ int main(int argc, char* argv[]) {
                     if (lobby_player2_connected && mx >= start_btn.x && mx <= start_btn.x + start_btn.w &&
                         my >= start_btn.y && my <= start_btn.y + start_btn.h) {
                         std::cout << "🎮 Host starting game!" << std::endl;
+                        multiplayer_active = true;
+                        multiplayer_frame_id = 0;
                         current_scene = SCENE_GAME;
                     }
                 } else {
@@ -3143,10 +3149,33 @@ int main(int argc, char* argv[]) {
                 bool is_replay_paused = !replay_player.frames.empty();
                 
                 if (!is_replay_paused) {
-                     // Normal Game: Handle Input & Run Frame
+                     // Handle Input
                      handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
-                     emu.run_frame();
-                     emulator_ran = true;
+                     
+                     if (multiplayer_active && net_manager.is_connected()) {
+                         // Multiplayer Mode: Simplified for demo
+                         // TODO: Proper input capture needed
+                         uint8_t local_input = 0; // Placeholder
+                         
+                         // Send local input
+                         net_manager.send_input(multiplayer_frame_id, local_input);
+                         
+                         // Try to get remote input
+                         nes::NetworkManager::Packet remote_packet;
+                         if (net_manager.pop_remote_input(remote_packet)) {
+                             // Got remote input, set it as P2
+                             emu.set_controller(1, remote_packet.input_state);
+                         }
+                         
+                         // Run frame
+                         emu.run_frame();
+                         emulator_ran = true;
+                         multiplayer_frame_id++;
+                     } else {
+                         // Single player mode
+                         emu.run_frame();
+                         emulator_ran = true;
+                     }
                 }
                 // If Paused Replay: Do nothing (freeze state)
             }
