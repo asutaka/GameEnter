@@ -367,7 +367,8 @@ public:
                       }
                       
                       // Connect Buttons
-                      int hy = row_y + 180 + 50 + 40; // Approx
+                      int card_y = start_y + 40;
+                      int hy = card_y + 180 + 50 + 50; // section_y (400) + 50 header margin = 450
                       auto hosts = discovery.get_peers();
                       for(const auto& host : hosts) {
                           // Connect button
