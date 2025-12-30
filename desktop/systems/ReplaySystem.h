@@ -29,6 +29,8 @@ struct ReplayFileInfo {
     std::string filename;     // Full filename (e.g., "replay_Contra_20251228_170530.rpl")
     std::string display_name; // Display name (e.g., "Contra - 2025/12/28 17:05:30")
     std::string full_path;    // Absolute path
+    std::string path;         // Same as full_path for compatibility
+    std::string game_name;    // Extracted game name
     uint32_t total_frames;    // Number of frames in replay
     std::string date_time;    // Formatted date/time
     size_t file_size;         // File size in bytes
@@ -255,6 +257,8 @@ inline std::vector<ReplayFileInfo> scan_replay_files() {
                          info.date_time = date_part.substr(0, 4) + "/" + date_part.substr(4, 2) + "/" + date_part.substr(6, 2) + " " +
                                           time_part.substr(0, 2) + ":" + time_part.substr(2, 2) + ":" + time_part.substr(4, 2);
                          info.display_name = game_name; 
+                         info.game_name = game_name;
+                         info.path = info.full_path;
                      } else {
                          info.display_name = name;
                          info.date_time = "Unknown Date";
