@@ -565,6 +565,11 @@ int main(int argc, char* argv[]) {
     bool multiplayer_active = false;
     uint32_t multiplayer_frame_id = 0;
     bool multiplayer_paused = false;
+    
+    // Disconnect Handling
+    bool waiting_for_reconnect = false;
+    std::chrono::high_resolution_clock::time_point disconnect_time;
+    const int RECONNECT_TIMEOUT = 30; // seconds
 
     // Slots
     std::vector<Slot> slots(12);
@@ -987,6 +992,43 @@ int main(int argc, char* argv[]) {
                      // Handle Input
                      handle_input(emu, currentKeyStates, joystick, buttons, connected_controllers);
                      
+                     // Check for disconnect in multiplayer
+                     if (multiplayer_active) {
+                         if (!net_manager.is_connected()) {
+                             if (!waiting_for_reconnect) {
+                                 // First time detect disconnect
+                                 waiting_for_reconnect = true;
+                                 disconnect_time = std::chrono::high_resolution_clock::now();
+                                 std::cout << "⚠️ Player disconnected, waiting for reconnection..." << std::endl;
+                             }
+                             
+                             // Check timeout
+                             auto now = std::chrono::high_resolution_clock::now();
+                             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                                 now - disconnect_time).count();
+                             
+                             if (elapsed > RECONNECT_TIMEOUT) {
+                                 // Timeout - end game
+                                 std::cout << "❌ Reconnect timeout, ending multiplayer session" << std::endl;
+                                 multiplayer_active = false;
+                                 waiting_for_reconnect = false;
+                                 current_scene = SCENE_HOME;
+                                 homeScene.active_panel = HOME_PANEL_FAVORITES; // Return to Duo panel
+                                 quickBall.set_layout_home();
+                                 continue; // Skip this frame
+                             }
+                             
+                             // Pause game while waiting - don't run frame
+                             // Just render current state
+                             emulator_ran = false;
+                             
+                         } else if (waiting_for_reconnect) {
+                             // Reconnected!
+                             waiting_for_reconnect = false;
+                             std::cout << "✅ Player reconnected! Resuming game..." << std::endl;
+                         }
+                     }
+                     
                      if (multiplayer_active && net_manager.is_connected()) {
                          // Multiplayer Mode: Lockstep synchronization
                          
@@ -1257,6 +1299,54 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
+        }
+        
+        // --- DISCONNECT OVERLAY ---
+        if (waiting_for_reconnect && current_scene == SCENE_GAME) {
+            // Semi-transparent overlay
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+            SDL_Rect overlay = {0, 0, SCREEN_WIDTH * SCALE, SCREEN_HEIGHT * SCALE};
+            SDL_RenderFillRect(renderer, &overlay);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            
+            // Calculate remaining time
+            auto now = std::chrono::high_resolution_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                now - disconnect_time).count();
+            int remaining = RECONNECT_TIMEOUT - elapsed;
+            
+            // Message box background
+            int box_w = 400;
+            int box_h = 120;
+            int box_x = (SCREEN_WIDTH * SCALE - box_w) / 2;
+            int box_y = (SCREEN_HEIGHT * SCALE - box_h) / 2;
+            
+            SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
+            SDL_Rect msg_box = {box_x, box_y, box_w, box_h};
+            SDL_RenderFillRect(renderer, &msg_box);
+            
+            SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255); // Orange border
+            SDL_RenderDrawRect(renderer, &msg_box);
+            
+            // Warning icon (!)
+            SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
+            SDL_Rect icon_bg = {box_x + 20, box_y + 35, 50, 50};
+            draw_filled_circle_aa(renderer, box_x + 45, box_y + 60, 25);
+            font_title.draw_text(renderer, "!", box_x + 38, box_y + 75, {40, 40, 40, 255});
+            
+            // Message text
+            std::string msg1 = "Player Disconnected";
+            font_body.draw_text(renderer, msg1, box_x + 90, box_y + 40, {255, 255, 255, 255});
+            
+            std::string msg2 = "Waiting for reconnection...";
+            font_small.draw_text(renderer, msg2, box_x + 90, box_y + 65, {200, 200, 200, 255});
+            
+            // Countdown
+            std::stringstream ss;
+            ss << "Timeout in " << remaining << "s";
+            std::string countdown = ss.str();
+            font_small.draw_text(renderer, countdown, box_x + 90, box_y + 85, {255, 165, 0, 255});
         }
         
         SDL_RenderPresent(renderer);
