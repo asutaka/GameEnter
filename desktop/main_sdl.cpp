@@ -94,6 +94,26 @@ FontSystem font_title;
 
 
 
+// Calculate simple checksum for desync detection
+uint32_t calculate_game_checksum(Emulator& emu) {
+    uint32_t checksum = 0;
+    
+    // Hash CPU state (fast, deterministic)
+    checksum ^= emu.cpu_.A;
+    checksum ^= (emu.cpu_.X << 8);
+    checksum ^= (emu.cpu_.Y << 16);
+    checksum ^= (emu.cpu_.PC << 24);
+    checksum ^= emu.cpu_.SP;
+    checksum ^= (emu.cpu_.P << 4);
+    
+    // Hash RAM (2KB) - simple XOR for speed
+    const uint8_t* ram = emu.memory_.get_ram();
+    for (int i = 0; i < 0x800; i += 4) {
+        checksum ^= *(uint32_t*)(ram + i);
+    }
+    
+    return checksum;
+}
 
 // Input Handling
 void handle_input(Emulator& emu, const Uint8* keys, const VirtualJoystick& joystick, const std::vector<VirtualButton>& buttons, const std::vector<SDL_GameController*>& controllers) {
@@ -570,6 +590,11 @@ int main(int argc, char* argv[]) {
     bool waiting_for_reconnect = false;
     std::chrono::high_resolution_clock::time_point disconnect_time;
     const int RECONNECT_TIMEOUT = 30; // seconds
+    
+    // Checksum Verification (Desync Detection)
+    uint32_t last_checksum = 0;
+    uint32_t remote_checksum = 0;
+    bool desync_detected = false;
 
     // Slots
     std::vector<Slot> slots(12);
@@ -1068,6 +1093,36 @@ int main(int argc, char* argv[]) {
                          emu.run_frame();
                          emulator_ran = true;
                          multiplayer_frame_id++;
+                         
+                         // Checksum verification (every 60 frames = 1 second)
+                         if (multiplayer_frame_id % 60 == 0) {
+                             uint32_t current_checksum = calculate_game_checksum(emu);
+                             
+                             if (lobby_is_host) {
+                                 // Host: Calculate and log checksum
+                                 last_checksum = current_checksum;
+                                 std::cout << "🔐 Frame " << multiplayer_frame_id 
+                                           << " checksum: 0x" << std::hex << current_checksum 
+                                           << std::dec << std::endl;
+                                 
+                                 // TODO: Send checksum to client via network
+                                 // For now, just log it
+                                 
+                             } else {
+                                 // Client: Compare with host's checksum
+                                 // TODO: Receive checksum from host via network
+                                 // For now, just calculate and log
+                                 std::cout << "🔐 Frame " << multiplayer_frame_id 
+                                           << " checksum: 0x" << std::hex << current_checksum 
+                                           << std::dec << std::endl;
+                                 
+                                 // Future: Compare checksums
+                                 // if (current_checksum != remote_checksum) {
+                                 //     desync_detected = true;
+                                 //     std::cout << "❌ DESYNC DETECTED!" << std::endl;
+                                 // }
+                             }
+                         }
                      } else {
                          // Single player mode
                          emu.run_frame();
