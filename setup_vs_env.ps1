@@ -1,5 +1,4 @@
 # Setup Visual Studio Environment in PowerShell
-# This script finds and loads Visual Studio Build Tools environment
 
 Write-Host "=== Setting up Visual Studio Environment ===" -ForegroundColor Cyan
 Write-Host ""
@@ -20,19 +19,13 @@ foreach ($path in $vsPaths) {
     $devCmdPath = Join-Path $path "Common7\Tools\VsDevCmd.bat"
     if (Test-Path $devCmdPath) {
         $vsDevCmd = $devCmdPath
-        Write-Host "✓ Found Visual Studio at: $path" -ForegroundColor Green
+        Write-Host "Found Visual Studio at: $path" -ForegroundColor Green
         break
     }
 }
 
 if (-not $vsDevCmd) {
-    Write-Host "❌ Visual Studio Build Tools not found!" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Please use Developer Command Prompt for VS 2022 instead:" -ForegroundColor Yellow
-    Write-Host "  1. Open Start Menu" -ForegroundColor Gray
-    Write-Host "  2. Search 'Developer Command Prompt for VS 2022'" -ForegroundColor Gray
-    Write-Host "  3. cd /d e:\Data\GameEnter" -ForegroundColor Gray
-    Write-Host "  4. .\build.ps1 debug" -ForegroundColor Gray
+    Write-Host "Visual Studio Build Tools not found!" -ForegroundColor Red
     exit 1
 }
 
@@ -40,7 +33,8 @@ Write-Host "Loading Visual Studio environment..." -ForegroundColor Yellow
 
 # Run VsDevCmd.bat and capture environment variables
 $tempFile = [System.IO.Path]::GetTempFileName()
-cmd /c "`"$vsDevCmd`" && set > `"$tempFile`""
+$cmdLine = "`"$vsDevCmd`" && set > `"$tempFile`""
+cmd /c $cmdLine
 
 # Parse and set environment variables
 Get-Content $tempFile | ForEach-Object {
@@ -52,10 +46,4 @@ Get-Content $tempFile | ForEach-Object {
 }
 
 Remove-Item $tempFile
-
-Write-Host "✅ Visual Studio environment loaded!" -ForegroundColor Green
-Write-Host ""
-Write-Host "You can now run:" -ForegroundColor Cyan
-Write-Host "  .\build.ps1 debug" -ForegroundColor Gray
-Write-Host "  .\build.ps1 test" -ForegroundColor Gray
-Write-Host ""
+Write-Host "Visual Studio environment loaded!" -ForegroundColor Green
