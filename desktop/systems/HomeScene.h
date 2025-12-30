@@ -61,6 +61,10 @@ public:
     bool duo_rom_selector_open = false;
     int duo_active_input_field = -1;
 
+    // Toast Notification
+    std::string toast_message = "";
+    Uint32 toast_timer = 0;
+
     // Callbacks
     std::function<bool(std::string)> on_start_game;
     std::function<void(int)> on_delete_slot; // Notify main if needed, or handle here? Main handles save on exit. But immediate delete?
@@ -137,12 +141,15 @@ public:
                      if (mx >= menu_x && mx <= menu_x + menu_w && my >= menu_y && my <= menu_y + menu_h) {
                          int clicked_item = (my - menu_y) / item_h;
                          if (clicked_item == 0) { // Add Shortcut
-                             // .. implementation ..
-                             // Needs platform specific shortcut logic. Skipped for now or just log.
-                             std::cout << "[Shortcut] Created for " << slots[context_menu_slot].name << std::endl;
+                             if (create_shortcut(slots[context_menu_slot].name, slots[context_menu_slot].rom_path, true)) {
+                                 toast_message = "Desktop Shortcut Created!";
+                                 toast_timer = SDL_GetTicks() + 3000;
+                             }
                          } else if (clicked_item == 1) { // Add Shortcut InGame
-                             std::cout << "[Shortcut InGame] Created for " << slots[context_menu_slot].name << std::endl;
-                             // Needs platform specific logic
+                             if (create_shortcut(slots[context_menu_slot].name, slots[context_menu_slot].rom_path, false)) {
+                                 toast_message = "Start Menu Shortcut Created!";
+                                 toast_timer = SDL_GetTicks() + 3000;
+                             }
                          } else if (clicked_item == 2) { // Change Cover
                              std::string path = open_file_dialog("Image Files\0*.png;*.jpg;*.jpeg;*.bmp\0All Files\0*.*\0");
                              if (!path.empty()) {
@@ -802,7 +809,27 @@ public:
                      if (ly + 65 > dy + dh) break;
                  }
              }
-        }
+         }
+
+         // --- Render Toast Notification ---
+         if (!toast_message.empty() && SDL_GetTicks() < toast_timer) {
+             int tw = (int)font_body.get_text_width(toast_message);
+             int th = 45;
+             int tx = 40; // Align with left content margin
+             int ty = (SCREEN_HEIGHT * SCALE) - th - 80;
+
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+             SDL_Rect box = {tx, ty, tw + 40, th};
+             SDL_SetRenderDrawColor(renderer, 46, 204, 113, 30); // Success Green (Soft)
+             SDL_RenderFillRect(renderer, &box);
+             SDL_SetRenderDrawColor(renderer, 46, 204, 113, 100);
+             SDL_RenderDrawRect(renderer, &box);
+             
+             font_body.draw_text(renderer, toast_message, tx + 20, ty + 28, {39, 174, 96, 255});
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+         } else if (!toast_message.empty()) {
+             toast_message = "";
+         }
     }
 };
 

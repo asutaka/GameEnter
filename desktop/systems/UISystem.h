@@ -9,6 +9,8 @@
 #include <fstream>
 #include <filesystem>
 #include <map>
+#include <cstdlib>
+#include <sstream>
 
 #include "../stb_image.h"
 #include "AppPath.h"
@@ -95,6 +97,56 @@ inline std::string open_file_dialog(const char* filter = "NES ROMs\0*.nes\0All F
 #else
 inline std::string open_file_dialog(const char* filter = "") { return ""; } // Not implemented for other OS
 #endif
+
+// Helper: Create Windows Shortcut (.lnk)
+inline bool create_shortcut(const std::string& name, const std::string& rom_path, bool is_desktop) {
+#ifdef _WIN32
+    char exe_path[MAX_PATH];
+    GetModuleFileNameA(NULL, exe_path, MAX_PATH);
+    std::string app_exe = exe_path;
+    
+    std::filesystem::path link_path;
+    if (is_desktop) {
+        const char* userprofile = std::getenv("USERPROFILE");
+        if (userprofile) {
+            link_path = std::filesystem::path(userprofile) / "Desktop" / (name + ".lnk");
+        }
+    } else {
+        // "InGame" shortcut -> Pin to Start Menu (Programs)
+        char appdata[MAX_PATH];
+        if (GetEnvironmentVariableA("APPDATA", appdata, MAX_PATH) > 0) {
+            link_path = std::filesystem::path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / (name + ".lnk");
+        }
+    }
+
+    if (link_path.empty()) return false;
+
+    // Escape single quotes for PowerShell
+    auto escape_ps = [](std::string s) {
+        size_t pos = 0;
+        while ((pos = s.find("'", pos)) != std::string::npos) {
+            s.replace(pos, 1, "''");
+            pos += 2;
+        }
+        return s;
+    };
+
+    std::string escaped_link = escape_ps(link_path.string());
+    std::string escaped_exe = escape_ps(app_exe);
+    std::string escaped_rom = escape_ps(rom_path);
+    
+    std::stringstream ps_cmd;
+    ps_cmd << "powershell -WindowStyle Hidden -Command \"$s=(New-Object -COM WScript.Shell).CreateShortcut('" << escaped_link << "');"
+           << "$s.TargetPath='" << escaped_exe << "';"
+           << "$s.Arguments='\\\"" << escaped_rom << "\\\"';"
+           << "$s.Save()\"";
+    
+    int result = system(ps_cmd.str().c_str());
+    return result == 0;
+#else
+    return false;
+#endif
+}
 
 // Helper: Import cover image to local storage
 inline std::string import_cover_image(const std::string& source_path, const std::string& game_name) {
