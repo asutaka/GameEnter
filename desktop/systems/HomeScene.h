@@ -308,7 +308,7 @@ public:
                  if (duo_rom_selector_open) {
                       // Selector Logic
                       // Close button
-                      int dialog_w = 550; int dialog_h = 450;
+                      int dialog_w = 550; int dialog_h = 500;
                       int dialog_x = (SCREEN_WIDTH * SCALE - dialog_w) / 2;
                       int dialog_y = (SCREEN_HEIGHT * SCALE - dialog_h) / 2;
                       int close_cx = dialog_x + dialog_w - 30; int close_cy = dialog_y + 30;
@@ -316,8 +316,8 @@ public:
                           duo_rom_selector_open = false;
                       } else {
                           // List items
-                          int list_y = dialog_y + 80; int item_h = 55; int count = 0;
-                          for(size_t i=0; i<slots.size() && count < 6; i++) {
+                          int list_y = dialog_y + 80; int item_h = 60; int count = 0;
+                          for(size_t i=0; i<slots.size() && count < 12; i++) {
                               if (!slots[i].occupied) continue;
                               SDL_Rect r = {dialog_x + 20, list_y, dialog_w - 40, item_h};
                               if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
@@ -325,7 +325,8 @@ public:
                                   duo_selected_rom_name = slots[i].name;
                                   duo_rom_selector_open = false;
                               }
-                              list_y += item_h + 10; count++;
+                              list_y += 68; count++;
+                              if (list_y + 60 > dialog_y + 500) break;
                           }
                       }
                  } else {
@@ -333,9 +334,8 @@ public:
                       int start_y = 130;
                       int row_y = start_y + 40 + 25; // card_y + padding
                       
-                      // Browse Button
                       row_y += 20; 
-                      SDL_Rect browse_btn = {content_x + content_width - 115, row_y, 90, 40};
+                      SDL_Rect browse_btn = {content_x + content_width - 110, row_y, 100, 40};
                       if (mx >= browse_btn.x && mx <= browse_btn.x + browse_btn.w && my >= browse_btn.y && my <= browse_btn.y + browse_btn.h) {
                           duo_rom_selector_open = true;
                       }
@@ -710,9 +710,9 @@ public:
              std::string rt = duo_selected_rom_name.empty() ? "Choose a game..." : duo_selected_rom_name;
              font_body.draw_text(renderer, rt, r_f.x + 12, r_f.y + 26, duo_selected_rom_name.empty() ? SDL_Color{180, 180, 180, 255} : SDL_Color{34, 43, 50, 255});
              
-             SDL_Rect bb = {content_x + content_width - 115, row_y, 90, 40};
+             SDL_Rect bb = {content_x + content_width - 110, row_y, 100, 40};
              SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255); SDL_RenderFillRect(renderer, &bb);
-             font_body.draw_text(renderer, "Browse", bb.x + 15, bb.y + 26, {255, 255, 255, 255});
+             font_body.draw_text(renderer, "Browse", bb.x + 22, bb.y + 26, {255, 255, 255, 255});
              
              row_y += 60;
              font_small.draw_text(renderer, "HOST NAME", content_x + padding, row_y + 5, {120, 120, 120, 255});
@@ -766,22 +766,40 @@ public:
                  SDL_Rect d = {0,0,SCREEN_WIDTH*SCALE, SCREEN_HEIGHT*SCALE}; SDL_RenderFillRect(renderer, &d);
                  SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
                  
-                 int dw = 550; int dh = 450;
+                 int dw = 550; int dh = 500;
                  int dx = (SCREEN_WIDTH*SCALE - dw)/2; int dy = (SCREEN_HEIGHT*SCALE - dh)/2;
                  SDL_Rect dlg = {dx, dy, dw, dh};
                  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); SDL_RenderFillRect(renderer, &dlg);
-                 font_title.draw_text(renderer, "SELECT GAME", dx + 20, dy + 40, {34, 43, 50, 255});
+                 
+                 SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+                 SDL_Rect header = {dx, dy, dw, 60}; SDL_RenderFillRect(renderer, &header);
+                 font_title.draw_text(renderer, "SELECT GAME TO HOST", dx + 20, dy + 42, {255, 255, 255, 255});
                  
                  int close_x = dx + dw - 30; int close_y = dy + 30;
-                 SDL_SetRenderDrawColor(renderer, 231, 76, 60, 255); draw_filled_circle_aa(renderer, close_x, close_y, 15);
+                 SDL_SetRenderDrawColor(renderer, 231, 76, 60, 255); draw_filled_circle_aa(renderer, close_x, close_y, 14);
+                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                 SDL_RenderDrawLine(renderer, close_x - 6, close_y - 6, close_x + 6, close_y + 6);
+                 SDL_RenderDrawLine(renderer, close_x + 6, close_y - 6, close_x - 6, close_y + 6);
                  
                  int ly = dy + 80; int c = 0;
                  for(auto& s : slots) {
-                     if(!s.occupied || c>=6) continue;
-                     SDL_Rect itm = {dx + 20, ly, dw - 40, 55};
-                     SDL_SetRenderDrawColor(renderer, 252, 252, 252, 255); SDL_RenderFillRect(renderer, &itm);
-                     font_body.draw_text(renderer, s.name, itm.x + 55, itm.y + 24, {34, 43, 50, 255});
-                     ly += 65; c++;
+                     if(!s.occupied || c>=12) continue;
+                     SDL_Rect itm = {dx + 20, ly, dw - 40, 60};
+                     SDL_SetRenderDrawColor(renderer, 245, 246, 247, 255); SDL_RenderFillRect(renderer, &itm);
+                     SDL_SetRenderDrawColor(renderer, 230, 230, 230, 255); SDL_RenderDrawRect(renderer, &itm);
+                     
+                     if (s.cover_texture) {
+                         SDL_Rect icon_r = {itm.x + 5, itm.y + 5, 50, 50};
+                         SDL_RenderCopy(renderer, s.cover_texture, NULL, &icon_r);
+                     } else {
+                         SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                         SDL_Rect icon_r = {itm.x + 5, itm.y + 5, 50, 50};
+                         SDL_RenderFillRect(renderer, &icon_r);
+                     }
+                     font_body.draw_text(renderer, s.name, itm.x + 65, itm.y + 35, {34, 43, 50, 255});
+                     
+                     ly += 68; c++;
+                     if (ly + 65 > dy + dh) break;
                  }
              }
         }

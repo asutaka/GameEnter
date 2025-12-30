@@ -548,6 +548,7 @@ int main(int argc, char* argv[]) {
 
     Emulator emu;
     HomeScene homeScene;
+    homeScene.init(config.get_nickname()); // Initialize with nickname from config
     LobbyScene lobbyScene;
     SettingsScene settingsScene;
     Scene current_scene = SCENE_HOME;
@@ -872,13 +873,24 @@ int main(int argc, char* argv[]) {
             }
 
             if (current_scene == SCENE_SETTINGS) {
+                 if (!settings_loaded) {
+                     settings_nickname = config.get_nickname();
+                     settings_avatar_path = config.get_avatar_path();
+                     settings_recorder_enabled = config.get_gameplay_recorder_enabled();
+                     settings_loaded = true;
+                 }
                  if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel)) {
                      // Event consumed
                  } else {
                      settingsScene.handle_event(e, settings_nickname, settings_avatar_path, settings_recorder_enabled, active_input_field, config, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE, 
                         []() { return open_file_dialog("Image Files\0*.png;*.jpg;*.jpeg;*.bmp\0All Files\0*.*\0"); }, 
                         [](const std::string& p, const std::string& n) { return import_avatar_image(p, n); });
+                     
+                     // Sync back to homeScene in case nickname was saved
+                     homeScene.init(config.get_nickname());
                  }
+            } else {
+                settings_loaded = false;
             }
 
         }
