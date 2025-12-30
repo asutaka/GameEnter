@@ -276,7 +276,7 @@ struct QuickBall {
         items.push_back({x + 60, y - 10, 20, 11});
     }
 
-    bool handle_event(const SDL_Event& e, Scene& scene, Emulator& emu, int& home_active_panel) {
+    bool handle_event(const SDL_Event& e, Scene& scene, Emulator& emu, int& home_active_panel, HomeScene& homeScene) {
         if (e.type == SDL_MOUSEBUTTONDOWN) {
             int mx = e.button.x;
             int my = e.button.y;
@@ -335,6 +335,7 @@ struct QuickBall {
                             home_active_panel = HOME_PANEL_ROM_GRID;
                         } else if (item.id == 11) { // Replays
                             scene = SCENE_HOME;
+                            homeScene.replay_files = scan_replay_files();
                             home_active_panel = HOME_PANEL_LIBRARY;
                         } else if (item.id == 12) { // Duo
                             scene = SCENE_HOME;
@@ -807,7 +808,7 @@ int main(int argc, char* argv[]) {
 
             if (current_scene == SCENE_GAME) {
                 // Check QuickBall first
-                if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel)) {
+                if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel, homeScene)) {
                     // Event consumed by QuickBall
                 } 
                 // Check Replay Controls if Replay is active
@@ -857,7 +858,7 @@ int main(int argc, char* argv[]) {
             // Home Screen Interactions
             // Home Screen Interactions
             if (current_scene == SCENE_HOME) {
-                 if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel)) {
+                 if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel, homeScene)) {
                      // Event consumed
                  } else {
                      homeScene.handle_event(e, slots, config, discovery, emu, replay_player, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE);
@@ -865,7 +866,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (current_scene == SCENE_LOBBY) {
-                 if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel)) {
+                 if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel, homeScene)) {
                      // Event consumed
                  } else {
                      lobbyScene.handle_event(e, lobby_is_host, lobby_player2_connected, current_scene, homeScene.active_panel, discovery, net_manager, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE);
@@ -879,7 +880,7 @@ int main(int argc, char* argv[]) {
                      settings_recorder_enabled = config.get_gameplay_recorder_enabled();
                      settings_loaded = true;
                  }
-                 if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel)) {
+                 if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel, homeScene)) {
                      // Event consumed
                  } else {
                      settingsScene.handle_event(e, settings_nickname, settings_avatar_path, settings_recorder_enabled, active_input_field, config, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE, 
