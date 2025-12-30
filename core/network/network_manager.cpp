@@ -205,11 +205,16 @@ void NetworkManager::receive_loop() {
 }
 
 bool NetworkManager::send_input(uint32_t frame_id, uint8_t input) {
+    return send_input(frame_id, input, 0);  // No checksum
+}
+
+bool NetworkManager::send_input(uint32_t frame_id, uint8_t input, uint32_t checksum) {
     if (state_ != State::CONNECTED) return false;
     
     Packet packet;
     packet.frame_id = frame_id;
     packet.input_state = input;
+    packet.checksum = checksum;
     
     int sent = send(socket_, (char*)&packet, sizeof(Packet), 0);
     return sent == sizeof(Packet);

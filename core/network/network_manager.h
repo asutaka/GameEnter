@@ -40,6 +40,7 @@ public:
     struct Packet {
         uint32_t frame_id;
         uint8_t input_state;
+        uint32_t checksum;  // Game state checksum (0 if not a checksum frame)
     };
 
     NetworkManager();
@@ -59,6 +60,9 @@ public:
     
     // Send local input for a specific frame
     bool send_input(uint32_t frame_id, uint8_t input);
+    
+    // Send local input with checksum (for desync detection)
+    bool send_input(uint32_t frame_id, uint8_t input, uint32_t checksum);
     
     // Try to pop the next input packet from the remote player
     // Returns true if a packet was retrieved

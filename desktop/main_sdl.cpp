@@ -106,10 +106,14 @@ uint32_t calculate_game_checksum(Emulator& emu) {
     checksum ^= emu.cpu_.SP;
     checksum ^= (emu.cpu_.P << 4);
     
-    // Hash RAM (2KB) - simple XOR for speed
-    const uint8_t* ram = emu.memory_.get_ram();
+    // Hash RAM (2KB) - read via Memory interface
     for (int i = 0; i < 0x800; i += 4) {
-        checksum ^= *(uint32_t*)(ram + i);
+        uint32_t word = 0;
+        word |= emu.memory_.read(i);
+        word |= (emu.memory_.read(i + 1) << 8);
+        word |= (emu.memory_.read(i + 2) << 16);
+        word |= (emu.memory_.read(i + 3) << 24);
+        checksum ^= word;
     }
     
     return checksum;
@@ -1076,6 +1080,11 @@ int main(int argc, char* argv[]) {
                                  // Client receives Host's input as P1
                                  uint8_t p1_input = remote_packet.input_state;
                                  emu.set_controller(0, p1_input);
+                                 
+                                 // Save Host's checksum if present (for desync detection)
+                                 if (remote_packet.checksum != 0) {
+                                     remote_checksum = remote_packet.checksum;
+                                 }
                              }
                          }
                          
@@ -1086,41 +1095,41 @@ int main(int argc, char* argv[]) {
                          }
                          // Host: P1 already set by handle_input(), no need to reapply
                          
-                         // Send local input
-                         net_manager.send_input(multiplayer_frame_id, local_input);
+                         // Calculate checksum every 60 frames (1 second)
+                         uint32_t current_checksum = 0;
+                         if (multiplayer_frame_id % 60 == 0) {
+                             current_checksum = calculate_game_checksum(emu);
+                         }
+                         
+                         // Send local input (with checksum if it's a checksum frame)
+                         net_manager.send_input(multiplayer_frame_id, local_input, current_checksum);
                          
                          // Run frame
                          emu.run_frame();
                          emulator_ran = true;
                          multiplayer_frame_id++;
                          
-                         // Checksum verification (every 60 frames = 1 second)
-                         if (multiplayer_frame_id % 60 == 0) {
-                             uint32_t current_checksum = calculate_game_checksum(emu);
-                             
-                             if (lobby_is_host) {
-                                 // Host: Calculate and log checksum
-                                 last_checksum = current_checksum;
-                                 std::cout << "🔐 Frame " << multiplayer_frame_id 
-                                           << " checksum: 0x" << std::hex << current_checksum 
-                                           << std::dec << std::endl;
-                                 
-                                 // TODO: Send checksum to client via network
-                                 // For now, just log it
-                                 
-                             } else {
-                                 // Client: Compare with host's checksum
-                                 // TODO: Receive checksum from host via network
-                                 // For now, just calculate and log
-                                 std::cout << "🔐 Frame " << multiplayer_frame_id 
-                                           << " checksum: 0x" << std::hex << current_checksum 
-                                           << std::dec << std::endl;
-                                 
-                                 // Future: Compare checksums
-                                 // if (current_checksum != remote_checksum) {
-                                 //     desync_detected = true;
-                                 //     std::cout << "❌ DESYNC DETECTED!" << std::endl;
-                                 // }
+                         // Client: Check for desync by comparing checksums
+                         if (!lobby_is_host && current_checksum != 0) {
+                             // We just calculated checksum, now check if we received host's checksum
+                             // Look for checksum in the last received packet
+                             if (remote_checksum != 0) {
+                                 if (current_checksum != remote_checksum) {
+                                     if (!desync_detected) {
+                                         desync_detected = true;
+                                         std::cout << "❌ DESYNC DETECTED at frame " << multiplayer_frame_id << "!" << std::endl;
+                                         std::cout << "   Host checksum:   0x" << std::hex << remote_checksum << std::dec << std::endl;
+                                         std::cout << "   Client checksum: 0x" << std::hex << current_checksum << std::dec << std::endl;
+                                         std::cout << "   Game may diverge from this point." << std::endl;
+                                     }
+                                 } else {
+                                     // Checksums match - clear desync flag if it was set
+                                     if (desync_detected) {
+                                         desync_detected = false;
+                                         std::cout << "✅ Sync restored at frame " << multiplayer_frame_id << std::endl;
+                                     }
+                                 }
+                                 remote_checksum = 0; // Reset for next check
                              }
                          }
                      } else {
