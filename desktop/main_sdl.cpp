@@ -3109,13 +3109,22 @@ int main(int argc, char* argv[]) {
             int cx = (SCREEN_WIDTH * SCALE) / 2;
             int cy = (SCREEN_HEIGHT * SCALE) / 2;
             
-            // Title
+            // --- HEADER ---
+            int header_h = 100;
+            SDL_Rect header_rect = {0, 0, SCREEN_WIDTH * SCALE, header_h};
+            SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+            SDL_RenderFillRect(renderer, &header_rect);
+            font_title.draw_text(renderer, "Game Enter NES", 20, 50, {255, 255, 255, 255});
+            std::string status = connected_controllers.empty() ? "No devices connected, play by touch." : "Gamepad connected.";
+            font_small.draw_text(renderer, status, 20, 80, {220, 220, 220, 255});
+
+            // Lobby Info (Below Header)
             std::string title = lobby_is_host ? "Hosting: " + lobby_host_name : "Joining: " + lobby_host_name;
-            font_title.draw_text(renderer, title, cx - font_title.get_text_width(title)/2, 100, {34, 43, 50, 255});
+            font_title.draw_text(renderer, title, cx - font_title.get_text_width(title)/2, 140, {34, 43, 50, 255});
             
             // ROM Info
             std::string rom_info = "Game: " + lobby_rom_name;
-            font_body.draw_text(renderer, rom_info, cx - font_body.get_text_width(rom_info)/2, 150, {100, 100, 100, 255});
+            font_body.draw_text(renderer, rom_info, cx - font_body.get_text_width(rom_info)/2, 175, {100, 100, 100, 255});
             
             // Players Card (Premium Style)
             SDL_Rect players_box = {cx - 220, cy - 100, 440, 200};
