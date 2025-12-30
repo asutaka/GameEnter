@@ -1248,13 +1248,13 @@ int main(int argc, char* argv[]) {
                         int cy = (SCREEN_HEIGHT * SCALE) / 2;
                         
                         // Background box
-                        SDL_Rect bg = {cx - (int)w/2 - 10, cy - 20, (int)w + 20, 40};
+                        SDL_Rect bg = {cx - (int)w/2 - 20, cy - 25, (int)w + 40, 50};
                         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
                         SDL_RenderFillRect(renderer, &bg);
                         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-                        font_title.draw_text(renderer, time_str, cx - w/2, cy - 15, {255, 255, 255, 255});
+                        font_title.draw_text(renderer, time_str, cx - w/2, cy + 10, {255, 255, 255, 255});
                     } else {
                         timer_show_final = false;
                     }
