@@ -990,45 +990,29 @@ int main(int argc, char* argv[]) {
                      if (multiplayer_active && net_manager.is_connected()) {
                          // Multiplayer Mode: Lockstep synchronization
                          
-                         // Process remote input FIRST
+                         // Save local input BEFORE processing remote (for Client to send as P2)
+                         uint8_t local_input = emu.get_controller_state(0);
+                         
+                         // Process remote input
                          nes::NetworkManager::Packet remote_packet;
                          while (net_manager.pop_remote_input(remote_packet)) {
                              if (lobby_is_host) {
                                  // Host receives Client's input as P2
-                                 // Strip out Start and Select buttons from P2 (only Host controls these)
                                  uint8_t p2_input = remote_packet.input_state;
-                                 p2_input &= ~(1 << Input::BUTTON_START);  // Remove Start
-                                 p2_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
                                  emu.set_controller(1, p2_input);
                              } else {
-                                 // Client receives Host's input
-                                 // Extract ONLY Start and Select from Host
-                                 uint8_t host_start_select = remote_packet.input_state & 
-                                     ((1 << Input::BUTTON_START) | (1 << Input::BUTTON_SELECT));
-                                 
-                                 // Get current P1 state (Client's own input)
-                                 uint8_t client_p1 = emu.get_controller_state(0);
-                                 
-                                 // Remove Start and Select from Client's input
-                                 client_p1 &= ~((1 << Input::BUTTON_START) | (1 << Input::BUTTON_SELECT));
-                                 
-                                 // Merge Host's Start/Select with Client's other buttons
-                                 uint8_t merged_p1 = client_p1 | host_start_select;
-                                 
-                                 // Apply merged input to P1
-                                 emu.set_controller(0, merged_p1);
+                                 // Client receives Host's input as P1
+                                 uint8_t p1_input = remote_packet.input_state;
+                                 emu.set_controller(0, p1_input);
                              }
                          }
                          
-                         // Get current P1 input state for sending
-                         uint8_t local_input = emu.get_controller_state(0);
-                         
-                         // Client: Strip Select AND Start from local input before sending (only Host controls these)
+                         // Apply local input to correct controller
                          if (!lobby_is_host) {
-                             local_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
-                             local_input &= ~(1 << Input::BUTTON_START);  // Remove Start
-                             // Note: We don't re-apply to controller here, just clean before sending
+                             // Client: Apply own input to P2
+                             emu.set_controller(1, local_input);
                          }
+                         // Host: P1 already set by handle_input(), no need to reapply
                          
                          // Send local input
                          net_manager.send_input(multiplayer_frame_id, local_input);
