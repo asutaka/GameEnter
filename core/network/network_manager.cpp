@@ -182,25 +182,55 @@ void NetworkManager::client_thread_func(std::string ip, int port) {
 
 void NetworkManager::receive_loop() {
     while (running_ && state_ == State::CONNECTED) {
-        Packet packet;
-        // Receive exactly sizeof(Packet) bytes
-        int total_received = 0;
-        char* buffer = (char*)&packet;
-        int bytes_to_read = sizeof(Packet);
-        
-        while (total_received < bytes_to_read) {
-            int received = recv(socket_, buffer + total_received, bytes_to_read - total_received, 0);
-            if (received <= 0) {
-                std::cout << "Connection lost or closed." << std::endl;
-                state_ = State::DISCONNECTED;
-                return;
-            }
-            total_received += received;
+        // Read packet type (1 byte header)
+        uint8_t packet_type = 0;
+        int received = recv(socket_, (char*)&packet_type, 1, 0);
+        if (received <= 0) {
+            std::cout << "Connection lost or closed." << std::endl;
+            state_ = State::DISCONNECTED;
+            return;
         }
         
-        // Push to queue
-        std::lock_guard<std::mutex> lock(buffer_mutex_);
-        input_queue_.push_back(packet);
+        if (packet_type == 0) {
+            // Game input packet
+            Packet packet;
+            int total_received = 0;
+            char* buffer = (char*)&packet;
+            int bytes_to_read = sizeof(Packet);
+            
+            while (total_received < bytes_to_read) {
+                int recv_bytes = recv(socket_, buffer + total_received, bytes_to_read - total_received, 0);
+                if (recv_bytes <= 0) {
+                    std::cout << "Connection lost or closed." << std::endl;
+                    state_ = State::DISCONNECTED;
+                    return;
+                }
+                total_received += recv_bytes;
+            }
+            
+            std::lock_guard<std::mutex> lock(buffer_mutex_);
+            input_queue_.push_back(packet);
+            
+        } else if (packet_type == 1) {
+            // Chat message
+            ChatMessage chat_msg;
+            int total_received = 0;
+            char* buffer = (char*)&chat_msg;
+            int bytes_to_read = sizeof(ChatMessage);
+            
+            while (total_received < bytes_to_read) {
+                int recv_bytes = recv(socket_, buffer + total_received, bytes_to_read - total_received, 0);
+                if (recv_bytes <= 0) {
+                    std::cout << "Connection lost or closed." << std::endl;
+                    state_ = State::DISCONNECTED;
+                    return;
+                }
+                total_received += recv_bytes;
+            }
+            
+            std::lock_guard<std::mutex> lock(buffer_mutex_);
+            chat_queue_.push_back(std::string(chat_msg.message));
+        }
     }
 }
 
@@ -210,6 +240,10 @@ bool NetworkManager::send_input(uint32_t frame_id, uint8_t input) {
 
 bool NetworkManager::send_input(uint32_t frame_id, uint8_t input, uint32_t checksum) {
     if (state_ != State::CONNECTED) return false;
+    
+    // Send packet type header (0 = game input)
+    uint8_t packet_type = 0;
+    send(socket_, (char*)&packet_type, 1, 0);
     
     Packet packet;
     packet.frame_id = frame_id;
@@ -226,6 +260,31 @@ bool NetworkManager::pop_remote_input(Packet& out_packet) {
     
     out_packet = input_queue_.front();
     input_queue_.pop_front();
+    return true;
+}
+
+bool NetworkManager::send_chat_message(const std::string& message) {
+    if (state_ != State::CONNECTED) return false;
+    if (message.empty() || message.length() >= 128) return false;
+    
+    // Send packet type header (1 = chat message)
+    uint8_t packet_type = 1;
+    send(socket_, (char*)&packet_type, 1, 0);
+    
+    ChatMessage chat_msg;
+    std::memset(chat_msg.message, 0, sizeof(chat_msg.message));
+    std::strncpy(chat_msg.message, message.c_str(), sizeof(chat_msg.message) - 1);
+    
+    int sent = send(socket_, (char*)&chat_msg, sizeof(ChatMessage), 0);
+    return sent == sizeof(ChatMessage);
+}
+
+bool NetworkManager::pop_chat_message(std::string& out_message) {
+    std::lock_guard<std::mutex> lock(buffer_mutex_);
+    if (chat_queue_.empty()) return false;
+    
+    out_message = chat_queue_.front();
+    chat_queue_.pop_front();
     return true;
 }
 

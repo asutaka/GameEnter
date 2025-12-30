@@ -42,6 +42,10 @@ public:
         uint8_t input_state;
         uint32_t checksum;  // Game state checksum (0 if not a checksum frame)
     };
+    
+    struct ChatMessage {
+        char message[128];  // Max 127 characters + null terminator
+    };
 
     NetworkManager();
     ~NetworkManager();
@@ -63,6 +67,10 @@ public:
     
     // Send local input with checksum (for desync detection)
     bool send_input(uint32_t frame_id, uint8_t input, uint32_t checksum);
+    
+    // Chat functions (for lobby)
+    bool send_chat_message(const std::string& message);
+    bool pop_chat_message(std::string& out_message);
     
     // Try to pop the next input packet from the remote player
     // Returns true if a packet was retrieved
@@ -88,6 +96,7 @@ private:
     // Input buffer (Thread safe)
     std::mutex buffer_mutex_;
     std::deque<Packet> input_queue_;
+    std::deque<std::string> chat_queue_;  // Chat messages
 };
 
 }

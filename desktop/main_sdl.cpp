@@ -800,6 +800,16 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
+            
+            // Poll chat messages
+            std::string chat_msg;
+            while (net_manager.pop_chat_message(chat_msg)) {
+                std::string sender = lobby_is_host ? "Client" : "Host";
+                lobbyScene.chat_history.push_back({sender, chat_msg});
+                if (lobbyScene.chat_history.size() > lobbyScene.MAX_CHAT_MESSAGES) {
+                    lobbyScene.chat_history.erase(lobbyScene.chat_history.begin());
+                }
+            }
         }
         
         while (SDL_PollEvent(&e) != 0) {
