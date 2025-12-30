@@ -993,6 +993,11 @@ int main(int argc, char* argv[]) {
                          // Save local input BEFORE processing remote (for Client to send as P2)
                          uint8_t local_input = emu.get_controller_state(0);
                          
+                         // Client: Clear P1 immediately (P1 will be set from Host's input only)
+                         if (!lobby_is_host) {
+                             emu.set_controller(0, 0); // Clear P1, will be overwritten by Host's input
+                         }
+                         
                          // Process remote input
                          nes::NetworkManager::Packet remote_packet;
                          while (net_manager.pop_remote_input(remote_packet)) {
