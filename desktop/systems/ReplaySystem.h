@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <filesystem>
 #include <algorithm>
+#include "AppPath.h"
 
 namespace fs = std::filesystem;
 
@@ -69,15 +70,16 @@ public:
         if (frames.empty()) return;
 
         // Create saves directory if not exists
-        if (!fs::exists("saves")) {
-            fs::create_directory("saves");
+        fs::path saves_dir = nes::get_app_dir() / "saves";
+        if (!fs::exists(saves_dir)) {
+            fs::create_directories(saves_dir);
         }
 
         // Generate filename with timestamp
         auto t = std::time(nullptr);
         auto tm = *std::localtime(&t);
         std::ostringstream oss;
-        oss << "saves/replay_" << current_rom_name << "_" 
+        oss << (saves_dir / ("replay_" + current_rom_name + "_")).string()
             << std::put_time(&tm, "%Y%m%d_%H%M%S") << ".rpl";
         std::string filename = oss.str();
 
@@ -222,7 +224,7 @@ public:
 // Helper to scan for replay files
 inline std::vector<ReplayFileInfo> scan_replay_files() {
     std::vector<ReplayFileInfo> files;
-    std::string saves_dir = "saves";
+    fs::path saves_dir = nes::get_app_dir() / "saves";
     
     if (!fs::exists(saves_dir)) {
         fs::create_directory(saves_dir);

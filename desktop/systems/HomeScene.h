@@ -57,7 +57,7 @@ public:
     // Duo
     std::string duo_selected_rom_path = "";
     std::string duo_selected_rom_name = "";
-    std::string duo_host_name = "Player 1";
+    std::string duo_host_name = "player";
     bool duo_rom_selector_open = false;
     int duo_active_input_field = -1;
 

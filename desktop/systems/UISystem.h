@@ -11,6 +11,7 @@
 #include <map>
 
 #include "../stb_image.h"
+#include "AppPath.h"
 
 namespace fs = std::filesystem;
 
@@ -40,7 +41,7 @@ inline std::string find_cover_image(const std::string& rom_path) {
     
     std::vector<std::string> search_paths;
     search_paths.push_back(base_path); // ROM folder
-    search_paths.push_back("images/"); // Images folder
+    search_paths.push_back((nes::get_app_dir() / "images/").string()); // Images folder
     
     std::string search_name = name_no_ext;
     
@@ -99,9 +100,7 @@ inline std::string open_file_dialog(const char* filter = "") { return ""; } // N
 inline std::string import_cover_image(const std::string& source_path, const std::string& game_name) {
     try {
         // 1. Get Exe Directory
-        // Use C++17 filesystem instead of WinAPI if possible, but for consistency with main_sdl
-        // we can use a simpler approach or just assume "images/covers" relative to CWD
-        fs::path covers_dir = fs::path("images") / "covers";
+        fs::path covers_dir = nes::get_app_dir() / "images" / "covers";
         if (!fs::exists(covers_dir)) {
             fs::create_directories(covers_dir); 
         }
@@ -131,7 +130,7 @@ inline std::string import_cover_image(const std::string& source_path, const std:
 // Helper: Import avatar image to local storage
 inline std::string import_avatar_image(const std::string& source_path, const std::string& device_id) {
     try {
-        fs::path avatars_dir = fs::path("images") / "avatars";
+        fs::path avatars_dir = nes::get_app_dir() / "images" / "avatars";
         if (!fs::exists(avatars_dir)) {
             fs::create_directories(avatars_dir);
         }

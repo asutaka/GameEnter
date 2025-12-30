@@ -303,11 +303,12 @@ struct QuickBall {
                              std::memcpy(temp_fb.data(), fb, temp_fb.size());
                              SDL_Surface* ss = SDL_CreateRGBSurfaceWithFormatFrom(temp_fb.data(), 256, 240, 32, 256*4, SDL_PIXELFORMAT_RGBA32);
                              if (ss) {
-                                 if (!fs::exists("snapshots")) fs::create_directory("snapshots");
+                                 fs::path snap_dir = nes::get_app_dir() / "snapshots";
+                                 if (!fs::exists(snap_dir)) fs::create_directories(snap_dir);
                                  auto now = std::chrono::system_clock::now();
                                  auto in_time_t = std::chrono::system_clock::to_time_t(now);
                                  std::stringstream ss_name;
-                                 ss_name << "snapshots/snapshot_" << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".bmp";
+                                 ss_name << (snap_dir / "snapshot_").string() << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".bmp";
                                  SDL_SaveBMP(ss, ss_name.str().c_str());
                                  SDL_FreeSurface(ss);
                                  std::cout << "[QuickBall] Snapshot saved: " << ss_name.str() << std::endl;
@@ -493,6 +494,16 @@ void handle_rom_grid_events(const SDL_Event& e, std::vector<Slot>& slots, int& s
                             const std::string& slots_file, Emulator& emu, Scene& current_scene, ConfigManager& config, Recorder& recorder);
 
 int main(int argc, char* argv[]) {
+    // FIX: Set working directory to EXE location as early as possible
+    char buffer[MAX_PATH];
+    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+    if (pos != std::string::npos) {
+        std::string exe_dir = std::string(buffer).substr(0, pos);
+        SetCurrentDirectoryA(exe_dir.c_str());
+        std::cout << "[App] Set working directory to: " << exe_dir << std::endl;
+    }
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0) {
         std::cerr << "SDL Init Failed: " << SDL_GetError() << std::endl;
         return 1;
@@ -556,12 +567,11 @@ int main(int argc, char* argv[]) {
     // Slots
     std::vector<Slot> slots(12);
     
-    // Determine absolute path for slots file based on Executable location
-    char buffer[MAX_PATH];
-    GetModuleFileNameA(NULL, buffer, MAX_PATH);
-    std::string::size_type pos = std::string(buffer).find_last_of("\\/");
-    std::string exe_dir = std::string(buffer).substr(0, pos);
-    std::string slots_file = exe_dir + "\\game_slots.txt";
+    std::filesystem::path data_dir = nes::get_app_dir() / "data";
+    if (!std::filesystem::exists(data_dir)) {
+        std::filesystem::create_directories(data_dir);
+    }
+    std::string slots_file = (data_dir / "game_slots.txt").string();
     
     // Load slots đã lưu từ file (nếu có)
     std::vector<SlotManager::Slot> saved_slots;
@@ -866,7 +876,7 @@ int main(int argc, char* argv[]) {
                      // Event consumed
                  } else {
                      settingsScene.handle_event(e, settings_nickname, settings_avatar_path, settings_recorder_enabled, active_input_field, config, SCREEN_WIDTH, SCREEN_HEIGHT, SCALE, 
-                        []() { return open_file_dialog(); }, 
+                        []() { return open_file_dialog("Image Files\0*.png;*.jpg;*.jpeg;*.bmp\0All Files\0*.*\0"); }, 
                         [](const std::string& p, const std::string& n) { return import_avatar_image(p, n); });
                  }
             }

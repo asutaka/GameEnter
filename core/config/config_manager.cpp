@@ -10,13 +10,19 @@ namespace nes {
 
 #include <windows.h> // For GetModuleFileNameA
 
-ConfigManager::ConfigManager() {
+ConfigManager::ConfigManager() : nickname_("player") {
     // Determine absolute path for config.ini based on executable location
     char buffer[MAX_PATH];
     GetModuleFileNameA(NULL, buffer, MAX_PATH);
     std::string::size_type pos = std::string(buffer).find_last_of("\\/");
     std::string exe_dir = std::string(buffer).substr(0, pos);
-    config_file_ = exe_dir + "\\config.ini";
+    
+    std::filesystem::path data_dir = std::filesystem::path(exe_dir) / "data";
+    if (!std::filesystem::exists(data_dir)) {
+        std::filesystem::create_directories(data_dir);
+    }
+    
+    config_file_ = (data_dir / "config.ini").string();
 
     load();
 }
@@ -43,6 +49,10 @@ void ConfigManager::load() {
     if (device_id_.empty()) {
         device_id_ = generate_uuid();
         save();
+    }
+    
+    if (nickname_.empty()) {
+        nickname_ = "player";
     }
 }
 

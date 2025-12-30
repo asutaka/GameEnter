@@ -9,6 +9,9 @@ namespace nes {
 
 class SettingsScene {
 public:
+    std::string toast_message = "";
+    Uint32 toast_timer = 0;
+
     void render(SDL_Renderer* renderer,
                 const std::string& settings_nickname,
                 const std::string& settings_avatar_path,
@@ -130,6 +133,24 @@ public:
         SDL_RenderFillRect(renderer, &save_btn);
         float save_txt_w = font_body.get_text_width("Save Changes");
         font_body.draw_text(renderer, "Save Changes", save_btn.x + (btn_w - (int)save_txt_w)/2, save_btn.y + 28, {255, 255, 255, 255});
+
+        // --- TOAST NOTIFICATION ---
+        if (toast_timer > SDL_GetTicks()) {
+            int tw = 280, th = btn_h;
+            int tx = content_x;
+            int ty = save_btn.y;
+            
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            // Light green background with border for success feedback
+            SDL_SetRenderDrawColor(renderer, 46, 204, 113, 30); 
+            SDL_Rect r = {tx, ty, tw, th};
+            SDL_RenderFillRect(renderer, &r);
+            SDL_SetRenderDrawColor(renderer, 46, 204, 113, 100);
+            SDL_RenderDrawRect(renderer, &r);
+            
+            font_body.draw_text(renderer, toast_message, tx + 15, ty + 28, {39, 174, 96, 255}); // Darker green text
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
     }
 
     void handle_event(const SDL_Event& e, 
@@ -187,7 +208,8 @@ public:
             }
             
             // Recorder Toggle
-            int sys_card_y = profile_card_y + 160 + 50 + 40;
+            int section_y = profile_card_y + 160 + 50; 
+            int sys_card_y = section_y + 40;
             int toggle_w = 60, toggle_h = 32;
             int toggle_x = content_x + content_width - toggle_w - 30;
             int toggle_y = sys_card_y + 15 + 10;
@@ -207,6 +229,8 @@ public:
                 config.set_gameplay_recorder_enabled(settings_recorder_enabled);
                 config.save();
                 std::cout << "💾 Settings Saved!" << std::endl;
+                toast_message = "Settings Saved Successfully!";
+                toast_timer = SDL_GetTicks() + 3000; // Show for 3 seconds
             }
         }
     }
