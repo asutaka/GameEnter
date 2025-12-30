@@ -36,12 +36,9 @@ Makefile
 tests/test_roms/*.nes
 
 # Android
-android/.gradle/
-android/build/
-android/local.properties
-android/.idea/
-android/*.iml
-android/app/build/
+android-project/
+android/
+
 
 # Logs
 *.log

@@ -8,14 +8,20 @@
 
 namespace nes {
 
+#ifdef _WIN32
 #include <windows.h> // For GetModuleFileNameA
+#endif
 
 ConfigManager::ConfigManager() : nickname_("player") {
     // Determine absolute path for config.ini based on executable location
+#ifdef _WIN32
     char buffer[MAX_PATH];
     GetModuleFileNameA(NULL, buffer, MAX_PATH);
     std::string::size_type pos = std::string(buffer).find_last_of("\\/");
     std::string exe_dir = std::string(buffer).substr(0, pos);
+#else
+    std::string exe_dir = ".";
+#endif
     
     std::filesystem::path data_dir = std::filesystem::path(exe_dir) / "data";
     if (!std::filesystem::exists(data_dir)) {

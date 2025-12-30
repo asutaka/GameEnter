@@ -1,6 +1,15 @@
 #include "network_manager.h"
 #include <iostream>
 #include <cstring>
+#ifdef _WIN32
+#include <Ws2tcpip.h> // Cho TCP_NODELAY trên Windows
+#else
+#include <sys/socket.h>  // Cho setsockopt
+#include <netinet/in.h>  // Cho IPPROTO_TCP
+#include <netinet/tcp.h> // Cho TCP_NODELAY trên Linux/Android
+#include <arpa/inet.h>   // Cho inet_pton
+#include <unistd.h>      // Cho close
+#endif
 
 namespace nes {
 
@@ -96,7 +105,11 @@ void NetworkManager::host_thread_func(int port) {
 
     if (bind(listen_socket_, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
         std::cerr << "Bind failed" << std::endl;
+#ifdef _WIN32
         closesocket(listen_socket_);
+#else
+        close(listen_socket_);
+#endif
         listen_socket_ = INVALID_SOCKET;
         state_ = State::DISCONNECTED;
         return;
@@ -104,7 +117,11 @@ void NetworkManager::host_thread_func(int port) {
 
     if (listen(listen_socket_, 1) == SOCKET_ERROR) {
         std::cerr << "Listen failed" << std::endl;
+#ifdef _WIN32
         closesocket(listen_socket_);
+#else
+        close(listen_socket_);
+#endif
         listen_socket_ = INVALID_SOCKET;
         state_ = State::DISCONNECTED;
         return;
@@ -120,7 +137,11 @@ void NetworkManager::host_thread_func(int port) {
              std::cerr << "Accept failed" << std::endl;
         }
         if (listen_socket_ != INVALID_SOCKET) {
+#ifdef _WIN32
             closesocket(listen_socket_);
+#else
+            close(listen_socket_);
+#endif
             listen_socket_ = INVALID_SOCKET;
         }
         state_ = State::DISCONNECTED;
@@ -129,7 +150,11 @@ void NetworkManager::host_thread_func(int port) {
 
     // Close listen socket, we only support 1 client
     if (listen_socket_ != INVALID_SOCKET) {
+#ifdef _WIN32
         closesocket(listen_socket_);
+#else
+        close(listen_socket_);
+#endif
         listen_socket_ = INVALID_SOCKET;
     }
     
@@ -163,7 +188,11 @@ void NetworkManager::client_thread_func(std::string ip, int port) {
 
     if (connect(socket_, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
         std::cerr << "Connect failed" << std::endl;
+#ifdef _WIN32
         closesocket(socket_);
+#else
+        close(socket_);
+#endif
         socket_ = INVALID_SOCKET;
         state_ = State::DISCONNECTED;
         return;

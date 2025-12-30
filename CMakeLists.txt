@@ -65,7 +65,8 @@ include(FetchContent)
 
 FetchContent_Declare(
   SDL2
-  URL https://github.com/libsdl-org/SDL/releases/download/release-2.28.5/SDL2-2.28.5.zip
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+  GIT_TAG        release-2.30.2  # <--- SỬA THÀNH PHIÊN BẢN MỚI NHẤT (hoặc 2.30.0 trở lên)
 )
 
 FetchContent_MakeAvailable(SDL2)

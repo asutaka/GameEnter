@@ -140,7 +140,7 @@ void NetworkDiscovery::receive_loop() {
     while (running_) {
         DiscoveryPacket packet;
         sockaddr_in sender_addr;
-        int sender_len = sizeof(sender_addr);
+        socklen_t sender_len = sizeof(sender_addr);
 
         int received = recvfrom(udp_socket_, (char*)&packet, sizeof(packet), 0, (sockaddr*)&sender_addr, &sender_len);
         

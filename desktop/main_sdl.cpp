@@ -518,7 +518,9 @@ void handle_rom_grid_events(const SDL_Event& e, std::vector<Slot>& slots, int& s
                             int& context_menu_slot, int& menu_x, int& menu_y, SDL_Renderer* renderer, 
                             const std::string& slots_file, Emulator& emu, Scene& current_scene, ConfigManager& config, Recorder& recorder);
 
-int main(int argc, char* argv[]) {
+// Bọc hàm main trong khối extern "C" để ngăn C++ đổi tên hàm
+extern "C" int SDL_main(int argc, char* argv[]) {
+#ifdef _WIN32
     // FIX: Set working directory to EXE location as early as possible
     char buffer[MAX_PATH];
     GetModuleFileNameA(NULL, buffer, MAX_PATH);
@@ -528,6 +530,7 @@ int main(int argc, char* argv[]) {
         SetCurrentDirectoryA(exe_dir.c_str());
         std::cout << "[App] Set working directory to: " << exe_dir << std::endl;
     }
+#endif
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0) {
         std::cerr << "SDL Init Failed: " << SDL_GetError() << std::endl;
