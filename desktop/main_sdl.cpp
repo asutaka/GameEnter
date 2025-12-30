@@ -2403,7 +2403,10 @@ int main(int argc, char* argv[]) {
                     // Layout Defines (Must match Render)
                     int content_x = 40;
                     int content_width = SCREEN_WIDTH * SCALE - 80;
-                    int start_y = 110; 
+                    // Layout Defines (Must match Render)
+                    int content_x = 40;
+                    int content_width = SCREEN_WIDTH * SCALE - 80;
+                    int start_y = 130;  // Lowered by 20px as requested 
                     
                     // Profile Card Area
                     int profile_card_y = start_y + 40; // Header height assumed
@@ -3182,7 +3185,7 @@ int main(int argc, char* argv[]) {
             
             int content_x = 40;
             int content_width = SCREEN_WIDTH * SCALE - 80;
-            int start_y = 110;
+            int start_y = 130;  // Lowered by 20px as requested
             
             // --- PROFILE SECTION ---
             // Section Title with Icon
@@ -3344,6 +3347,18 @@ int main(int argc, char* argv[]) {
             // Centered Text
             float save_txt_w = font_body.get_text_width("Save Changes");
             font_body.draw_text(renderer, "Save Changes", save_btn.x + (btn_w - (int)save_txt_w)/2, save_btn.y + 28, {255, 255, 255, 255});
+
+            // --- HEADER ---
+            int header_h = 100;
+            SDL_Rect header_rect = {0, 0, SCREEN_WIDTH * SCALE, header_h};
+            SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+            SDL_RenderFillRect(renderer, &header_rect);
+
+            // Title
+            font_title.draw_text(renderer, "Game Enter NES", 20, 50, {255, 255, 255, 255});
+            // Status
+            std::string status = connected_controllers.empty() ? "No devices connected, play by touch." : "Gamepad connected.";
+            font_small.draw_text(renderer, status, 20, 80, {220, 220, 220, 255});
 
             // Render QuickBall
             quickBall.render(renderer);
