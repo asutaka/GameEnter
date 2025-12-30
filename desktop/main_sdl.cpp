@@ -2170,10 +2170,12 @@ int main(int argc, char* argv[]) {
                             }
                         } else {
                             // Main Duo Panel Clicks (Modern Redesign)
-                            int section_y = panel_content_y + 20; // Create Host title
-                            section_y += 50; // Card start
+                            int start_y = 130; // Synced with Settings
+                            int section_y = start_y;
+                            int card_y = section_y + 40; // Card starts at 170
+                            
                             int padding = 25;
-                            int row_y = section_y + padding;
+                            int row_y = card_y + padding;
                             
                             // Row 1: ROM Selection (Browse Button)
                             row_y += 20; // Move to field level
@@ -2245,8 +2247,9 @@ int main(int argc, char* argv[]) {
                             
                             // Check Connect button clicks in host list
                             auto hosts = discovery.get_peers();
-                            int hosts_section_y = section_y + 210 + 50; // After CREATE HOST card + title
-                            int hy = hosts_section_y;
+                            // Available Card starts at: card_y(CreateHost) + 180(Height) + 50(Gap) + 40(Title Offset)
+                            int host_card_start_y = card_y + 180 + 50 + 40; 
+                            int hy = host_card_start_y;
                             
                             for (size_t i = 0; i < hosts.size() && i < 3; i++) {
                                 const auto& host = hosts[i];
@@ -2400,9 +2403,6 @@ int main(int argc, char* argv[]) {
                     int mx = e.button.x;
                     int my = e.button.y;
                     
-                    // Layout Defines (Must match Render)
-                    int content_x = 40;
-                    int content_width = SCREEN_WIDTH * SCALE - 80;
                     // Layout Defines (Must match Render)
                     int content_x = 40;
                     int content_width = SCREEN_WIDTH * SCALE - 80;
@@ -2750,12 +2750,12 @@ int main(int argc, char* argv[]) {
                 
             } else if (home_active_panel == HOME_PANEL_FAVORITES) {
                 // --- DUO PANEL (Modern Redesign) ---
-                int panel_content_y = 140;
                 int content_x = 40;
                 int content_width = SCREEN_WIDTH * SCALE - 80;
+                int start_y = 130; // Synced with Settings
                 
                 // === CREATE HOST SECTION ===
-                int section_y = panel_content_y + 20;
+                int section_y = start_y;
                 
                 // Section Title with Icon
                 SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
@@ -2765,10 +2765,11 @@ int main(int argc, char* argv[]) {
                 SDL_Rect body_icon = {content_x + 6, section_y + 13, 8, 4}; SDL_RenderFillRect(renderer, &body_icon);
                 
                 font_title.draw_text(renderer, "CREATE HOST", content_x + 35, section_y + 22, {34, 43, 50, 255});
-                section_y += 50;
+                
+                int card_y = section_y + 40; // Card starts at 170
                 
                 // Premium Card Container
-                SDL_Rect create_card = {content_x, section_y, content_width, 180};
+                SDL_Rect create_card = {content_x, card_y, content_width, 180};
                 // Shadow
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 20);
@@ -2782,7 +2783,7 @@ int main(int argc, char* argv[]) {
                 SDL_RenderDrawRect(renderer, &create_card);
                 
                 int padding = 25;
-                int row_y = section_y + padding;
+                int row_y = card_y + padding;
                 
                 // Row 1: ROM Selection
                 font_small.draw_text(renderer, "SELECT GAME TO HOST", content_x + padding, row_y + 5, {120, 120, 120, 255});
@@ -2833,7 +2834,7 @@ int main(int argc, char* argv[]) {
                 SDL_RenderFillRect(renderer, &host_btn);
                 font_body.draw_text(renderer, "Start Hosting", host_btn.x + 15, host_btn.y + 26, {255, 255, 255, 255});
                 
-                section_y += 210;
+                section_y = card_y + 180 + 50;
                 
                 // === AVAILABLE HOSTS SECTION ===
                 // Section Title with Icon
@@ -3190,12 +3191,12 @@ int main(int argc, char* argv[]) {
             // --- PROFILE SECTION ---
             // Section Title with Icon
             int section_y = start_y;
+            // Use Duo "Create Host" icon for Profile Settings
             SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
-            draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 12); // Circle BG
-            // Draw simple user icon (Head + Body)
+            draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 12);
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            draw_filled_circle_aa(renderer, content_x + 10, section_y + 9, 5); // Head
-            SDL_Rect user_body = {content_x + 5, section_y + 16, 10, 5}; SDL_RenderFillRect(renderer, &user_body);
+            draw_filled_circle_aa(renderer, content_x + 10, section_y + 8, 4); // Head
+            SDL_Rect body_icon = {content_x + 6, section_y + 13, 8, 4}; SDL_RenderFillRect(renderer, &body_icon);
             
             font_title.draw_text(renderer, "PROFILE SETTINGS", content_x + 35, section_y + 22, {34, 43, 50, 255});
             
@@ -3279,12 +3280,13 @@ int main(int argc, char* argv[]) {
             // --- SYSTEM SECTION ---
             section_y = profile_card.y + profile_card.h + 50; 
             
-            // Icon
+            // Icon - Use Duo "Available Hosts" icon (Radar) for System Preferences
             SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
             draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 12);
-            // Cog-like dots
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 5); // Center hole
+            draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 6);
+            SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+            draw_filled_circle_aa(renderer, content_x + 10, section_y + 12, 3);
             
             font_title.draw_text(renderer, "SYSTEM PREFERENCES", content_x + 35, section_y + 22, {34, 43, 50, 255});
             
