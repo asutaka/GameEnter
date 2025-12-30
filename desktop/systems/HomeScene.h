@@ -108,7 +108,7 @@ public:
 
             // Header Tabs
             int tab_y = 85; 
-            int tab_h = 40;
+            int tab_h = 1;
             // 3 Tabs centered
             int tab_w = 120;
             int total_w = 3 * tab_w;
@@ -407,7 +407,7 @@ public:
         
         // --- HEADER TABS ---
         int tab_y = 85; 
-        int tab_h = 40;
+        int tab_h = 1;
         int tab_w = 120;
         int total_tabs_w = 3 * tab_w;
         int tabs_start_x = (SCREEN_WIDTH * SCALE - total_tabs_w) / 2;
