@@ -99,27 +99,16 @@ inline std::string open_file_dialog(const char* filter = "") { return ""; } // N
 #endif
 
 // Helper: Create Windows Shortcut (.lnk)
-inline bool create_shortcut(const std::string& name, const std::string& rom_path, bool is_desktop) {
+inline bool create_shortcut(const std::string& name, const std::string& target_args) {
 #ifdef _WIN32
     char exe_path[MAX_PATH];
     GetModuleFileNameA(NULL, exe_path, MAX_PATH);
     std::string app_exe = exe_path;
     
-    std::filesystem::path link_path;
-    if (is_desktop) {
-        const char* userprofile = std::getenv("USERPROFILE");
-        if (userprofile) {
-            link_path = std::filesystem::path(userprofile) / "Desktop" / (name + ".lnk");
-        }
-    } else {
-        // "InGame" shortcut -> Pin to Start Menu (Programs)
-        char appdata[MAX_PATH];
-        if (GetEnvironmentVariableA("APPDATA", appdata, MAX_PATH) > 0) {
-            link_path = std::filesystem::path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / (name + ".lnk");
-        }
-    }
-
-    if (link_path.empty()) return false;
+    const char* userprofile = std::getenv("USERPROFILE");
+    if (!userprofile) return false;
+    
+    std::filesystem::path link_path = std::filesystem::path(userprofile) / "Desktop" / (name + ".lnk");
 
     // Escape single quotes for PowerShell
     auto escape_ps = [](std::string s) {
@@ -133,13 +122,18 @@ inline bool create_shortcut(const std::string& name, const std::string& rom_path
 
     std::string escaped_link = escape_ps(link_path.string());
     std::string escaped_exe = escape_ps(app_exe);
-    std::string escaped_rom = escape_ps(rom_path);
     
     std::stringstream ps_cmd;
     ps_cmd << "powershell -WindowStyle Hidden -Command \"$s=(New-Object -COM WScript.Shell).CreateShortcut('" << escaped_link << "');"
-           << "$s.TargetPath='" << escaped_exe << "';"
-           << "$s.Arguments='\\\"" << escaped_rom << "\\\"';"
-           << "$s.Save()\"";
+           << "$s.TargetPath='" << escaped_exe << "';";
+    
+    if (!target_args.empty()) {
+        std::string escaped_args = escape_ps(target_args);
+        // Note: we need to wrap the path in escaped double quotes for the command line argument
+        ps_cmd << "$s.Arguments='\\\"" << escaped_args << "\\\"';";
+    }
+    
+    ps_cmd << "$s.Save()\"";
     
     int result = system(ps_cmd.str().c_str());
     return result == 0;

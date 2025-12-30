@@ -141,13 +141,13 @@ public:
                      if (mx >= menu_x && mx <= menu_x + menu_w && my >= menu_y && my <= menu_y + menu_h) {
                          int clicked_item = (my - menu_y) / item_h;
                          if (clicked_item == 0) { // Add Shortcut
-                             if (create_shortcut(slots[context_menu_slot].name, slots[context_menu_slot].rom_path, true)) {
-                                 toast_message = "Desktop Shortcut Created!";
+                             if (create_shortcut("GameEnter", "")) {
+                                 toast_message = "App Shortcut Created!";
                                  toast_timer = SDL_GetTicks() + 3000;
                              }
                          } else if (clicked_item == 1) { // Add Shortcut InGame
-                             if (create_shortcut(slots[context_menu_slot].name, slots[context_menu_slot].rom_path, false)) {
-                                 toast_message = "Start Menu Shortcut Created!";
+                             if (create_shortcut(slots[context_menu_slot].name, slots[context_menu_slot].rom_path)) {
+                                 toast_message = "Game Shortcut Created!";
                                  toast_timer = SDL_GetTicks() + 3000;
                              }
                          } else if (clicked_item == 2) { // Change Cover
@@ -552,10 +552,10 @@ public:
                     if (i == 0) { // Shortcut
                         SDL_Rect link1 = {icon_x, center_y - 1, 12, 2}; SDL_RenderFillRect(renderer, &link1);
                         SDL_Rect link2 = {icon_x + 2, center_y - 5, 2, 10}; SDL_RenderFillRect(renderer, &link2);
-                        font_small.draw_text(renderer, "Add Shortcut", text_x, center_y + 6, {34, 43, 50, 255});
+                        font_small.draw_text(renderer, "Add App Shortcut", text_x, center_y + 6, {34, 43, 50, 255});
                     } else if (i == 1) { // Shortcut InGame
                         draw_filled_triangle(renderer, icon_x, center_y - 5, icon_x + 10, center_y, icon_x, center_y + 5);
-                        font_small.draw_text(renderer, "Add Shortcut InGame", text_x, center_y + 6, {34, 43, 50, 255});
+                        font_small.draw_text(renderer, "Add Game Shortcut", text_x, center_y + 6, {34, 43, 50, 255});
                     } else if (i == 2) { // Change Cover
                         SDL_Rect img = {icon_x, center_y - 5, 14, 10}; SDL_RenderDrawRect(renderer, &img);
                         draw_filled_circle(renderer, icon_x + 4, center_y - 2, 2);
