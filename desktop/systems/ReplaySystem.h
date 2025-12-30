@@ -143,6 +143,16 @@ public:
         return true;
     }
 
+
+
+    size_t get_current_frame() const { return current_frame_index; }
+    size_t get_total_frames() const { return frames.size(); }
+    
+    float get_progress() const {
+        if (frames.empty()) return 0.0f;
+        return (float)current_frame_index / frames.size();
+    }
+
     void set_speed(float speed) {
         playback_speed = speed;
         if (playback_speed < 0.25f) playback_speed = 0.25f;

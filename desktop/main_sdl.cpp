@@ -807,8 +807,9 @@ int main(int argc, char* argv[]) {
             
 
             if (current_scene == SCENE_GAME) {
-                // Check QuickBall first
-                if (quickBall.handle_event(e, current_scene, emu, homeScene.active_panel, homeScene)) {
+                // Check QuickBall first (only if NOT replaying)
+                bool is_replaying_now = replay_player.is_playing || replay_player.get_current_frame() > 0;
+                if (!is_replaying_now && quickBall.handle_event(e, current_scene, emu, homeScene.active_panel, homeScene)) {
                     // Event consumed by QuickBall
                 } 
                 // Check Replay Controls if Replay is active
@@ -817,13 +818,16 @@ int main(int argc, char* argv[]) {
                     int my = e.button.y;
                     
                     // Coordinates must match Render logic
-                    int btn_radius = 25; // Diameter 50
+                    int btn_radius = 25; 
                     int bottom_y = SCREEN_HEIGHT * SCALE - 50;
-                    // QuickBall is at Right-50
-                    // Controls shift left: Play(R-110), Fast(R-170), Slow(R-230)
-                    int start_x = SCREEN_WIDTH * SCALE - 110; // Play/Pause
-                    int ff_x = start_x - 60; // Fast Forward
-                    int rw_x = ff_x - 60; // Slow Down
+
+                    // Layout Order (Right to Left): [Home] [Play] [Fast] [Slow]
+                    int home_x = SCREEN_WIDTH * SCALE - 40;
+                    int start_x = home_x - 70; // Play/Pause
+                    int ff_x = start_x - 60;   // Fast Forward
+                    int rw_x = ff_x - 60;      // Slow Down
+                    
+                    int home_y = bottom_y;
 
                     // Helper for circle click
                     auto is_in_circle = [&](int mx, int my, int cx, int cy, int r) {
@@ -847,6 +851,13 @@ int main(int argc, char* argv[]) {
                     else if (is_in_circle(mx, my, rw_x, bottom_y, btn_radius)) {
                         float s = replay_player.playback_speed;
                         if (s > 0.5f) replay_player.set_speed(s / 2.0f);
+                    }
+                    // Home
+                    else if (is_in_circle(mx, my, home_x, home_y, btn_radius)) {
+                            replay_player.unload_replay(); // Stop and unload
+                            current_scene = SCENE_HOME;
+                            homeScene.active_panel = HOME_PANEL_LIBRARY;
+                            quickBall.set_layout_home();
                     }
                 }
                 else if (connected_controllers.empty()) {
@@ -930,6 +941,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "🔙 Replay finished, returning to Library" << std::endl;
                 current_scene = SCENE_HOME;
                 homeScene.active_panel = HOME_PANEL_LIBRARY;
+                quickBall.set_layout_home(); // Reset QuickBall layout
                 replay_player.replay_finished = false;  // Reset flag
                 continue;  // Skip this frame and go to next iteration
             }
@@ -1048,20 +1060,13 @@ int main(int argc, char* argv[]) {
             
             bool is_replaying = replay_player.is_playing || replay_player.get_current_frame() > 0;
             
-            // Update QuickBall Layout based on mode
-            static bool was_replaying = false;
-            if (is_replaying != was_replaying) {
-                if (is_replaying) {
-                    // Switch to Replay Layout (Far Right, Vertical)
-                    // QuickBall takes the rightmost spot (R-50)
-                    quickBall.set_pos((SCREEN_WIDTH * SCALE) - 50, bottom_y);
-                    quickBall.set_layout_replay();
-                } else {
-                    // Switch to Normal Layout (Center, Fan out)
-                    quickBall.set_pos(center_x, bottom_y);
-                    quickBall.set_layout_normal();
-                }
-                was_replaying = is_replaying;
+            // Only update QuickBall position/layout if NOT replaying
+            if (!is_replaying) {
+                // Ensure layout is Normal/Home
+                if (current_scene == SCENE_HOME) quickBall.set_layout_home();
+                else quickBall.set_layout_normal();
+                
+                quickBall.set_pos(center_x, bottom_y);
             }
 
             if (connected_controllers.empty() && !is_replaying) {
@@ -1077,34 +1082,45 @@ int main(int argc, char* argv[]) {
                     b.render(renderer);
                 }
             }
-            quickBall.render(renderer);
+            
+            // Hide QuickBall in Replay
+            if (!is_replaying) {
+                quickBall.render(renderer);
+            }
             
             // --- REPLAY PLAYBACK UI ---
             if (replay_player.is_playing || replay_player.get_current_frame() > 0) {
                 // Coordinates
                 int btn_radius = 25;
                 int bottom_y = SCREEN_HEIGHT * SCALE - 50;
-                // QuickBall is at Right-50
-                // Controls shift left: Play(R-110), Fast(R-170), Slow(R-230)
-                int start_x = SCREEN_WIDTH * SCALE - 110; // Play/Pause
-                int ff_x = start_x - 60; // Fast Forward
-                int rw_x = ff_x - 60; // Slow Down
+                
+                // Layout Order (Right to Left): [Home] [Play] [Fast] [Slow]
+                int home_x = SCREEN_WIDTH * SCALE - 40;
+                int start_x = home_x - 70; // Play/Pause
+                int ff_x = start_x - 60;   // Fast Forward
+                int rw_x = ff_x - 60;      // Slow Down
+                
+                int home_y = bottom_y;
 
-                // (Progress bar moved to bottom)
-                
-                // (Time display moved to bottom)
-                
                 // Replay name
                 std::string status = replay_player.is_playing ? "Playing: " : "Paused: ";
                 status += replay_player.replay_name;
-                // Replay name position might need adjustment or removal if it overlaps. 
-                // Let's keep it but maybe move it up? Or just leave it. 
-                // Assuming bar_x/bar_y/bar_h are gone, we need new coords for text if we keep it.
-                // Let's just comment it out or put it somewhere safe, e.g., top left.
                 font_small.draw_text(renderer, status, 20, 20, {255, 255, 255, 255});
 
-                // --- Playback Controls (Bottom Right) ---
-                // (Coordinates already defined above)
+                // --- Top Right Buttons (Moved to Bottom Right) ---
+                int tr_radius = 25;
+
+                // Home Button
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
+                draw_filled_circle_aa(renderer, home_x, home_y, tr_radius);
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+                draw_circle_outline_aa(renderer, home_x, home_y, tr_radius);
+                // Home Icon (House)
+                SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+                draw_filled_triangle(renderer, home_x, home_y - 8, home_x - 8, home_y, home_x + 8, home_y); // Roof
+                SDL_Rect h_base = {home_x - 5, home_y, 10, 8}; SDL_RenderFillRect(renderer, &h_base); // Base
+
+                // --- Playback Controls ---
 
                 // 1. Play/Pause Button
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 200);
@@ -1149,8 +1165,6 @@ int main(int argc, char* argv[]) {
                 SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
                 draw_filled_triangle(renderer, rw_x + 6, bottom_y - 6, rw_x - 2, bottom_y, rw_x + 6, bottom_y + 6);
                 draw_filled_triangle(renderer, rw_x - 2, bottom_y - 6, rw_x - 10, bottom_y, rw_x - 2, bottom_y + 6);
-
-                // (Speed Display moved to above progress bar)
 
                 // Time Display (Bottom Left)
                 int cur_seconds = (int)(replay_player.get_current_frame() / 60.0f);
