@@ -1499,16 +1499,42 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    // Pre-load if arg provided (into slot 0)
+    // Helper lambda to start game
+    auto start_game = [&](std::string path) {
+        if (emu.load_rom(path.c_str())) {
+            emu.reset();
+            // Run a few frames to init PPU
+            for (int k = 0; k < 10; k++) emu.run_frame();
+            // Minimal PPU init hacks (same as before)
+            emu.memory_.read(0x2002);
+            emu.memory_.write(0x2006, 0x3F); emu.memory_.write(0x2006, 0x00);
+            emu.memory_.write(0x2007, 0x0F); emu.memory_.write(0x2007, 0x30);
+            emu.memory_.write(0x2007, 0x16); emu.memory_.write(0x2007, 0x27);
+            
+            replay_player.unload_replay();
+            current_scene = SCENE_GAME;
+            quickBall.set_layout_normal();
+            
+            if (config.get_gameplay_recorder_enabled()) {
+                std::string rom_name = fs::path(path).filename().string();
+                recorder.start_recording(rom_name);
+            }
+            return true;
+        }
+        return false;
+    };
+
+    // Pre-load if arg provided
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--id" && i + 1 < argc) {
             config.set_device_id(argv[++i]);
-            config.set_nickname("Player 2"); // Auto-set nickname for convenience
+            config.set_nickname("Player 2"); 
         } else if (arg.find(".nes") != std::string::npos) {
-            slots[0].rom_path = arg;
-            slots[0].name = "Game 1";
-            slots[0].occupied = true;
+            // Direct launch from shortcut
+            if (start_game(arg)) {
+                std::cout << "🚀 Launched directly from shortcut: " << arg << std::endl;
+            }
         }
     }
 
@@ -1835,96 +1861,115 @@ int main(int argc, char* argv[]) {
                         }
                     } else if (showing_context_menu) {
                         // Handle Context Menu Clicks
-                        int w = 180; int h = 120;
+                        int w = 180; int h = 160; // Increased height for 4 items
                         int item_h = 40;
-                        // Add Shortcut
-                        if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + item_h) {
-                            // Create Shortcut (.lnk) using PowerShell
-                            if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
-                                std::string desktop_path = getenv("USERPROFILE");
-                                desktop_path += "\\Desktop\\";
-                                std::string shortcut_path = desktop_path + slots[context_menu_slot].name + ".lnk";
-                                
-                                char buffer[MAX_PATH];
-                                GetModuleFileNameA(NULL, buffer, MAX_PATH);
-                                std::string exe_path = buffer;
-                                std::string rom_path = slots[context_menu_slot].rom_path;
-                                std::string icon_path = slots[context_menu_slot].cover_path;
-
-                                // Build PowerShell command to create shortcut
-                                // Note: We use single quotes for PowerShell strings to avoid escaping hell
-                                std::string ps_cmd = "powershell.exe -ExecutionPolicy Bypass -NoProfile -Command \"";
-                                ps_cmd += "$ws = New-Object -ComObject WScript.Shell; ";
-                                ps_cmd += "$s = $ws.CreateShortcut('" + shortcut_path + "'); ";
-                                ps_cmd += "$s.TargetPath = '" + exe_path + "'; ";
-                                // Argument needs double quotes inside single quotes to handle spaces in ROM path
-                                ps_cmd += "$s.Arguments = '\"" + rom_path + "\"'; "; 
-                                
-                                // Set Icon if available
-                                if (!icon_path.empty()) {
-                                    ps_cmd += "$s.IconLocation = '" + icon_path + "'; ";
-                                }
-                                
-                                ps_cmd += "$s.Save()\"";
-
-                                // Execute command
-                                system(ps_cmd.c_str());
-                                std::cout << "✅ Created shortcut: " << shortcut_path << std::endl;
-                            }
-                            showing_context_menu = false;
-                        }
-                        // Change Cover
-                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + item_h && my <= menu_y + item_h * 2) {
-                            #ifdef _WIN32
-                            if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
-                                OPENFILENAME ofn;
-                                char szFile[260] = {0};
-                                
-                                ZeroMemory(&ofn, sizeof(ofn));
-                                ofn.lStructSize = sizeof(ofn);
-                                ofn.hwndOwner = NULL;
-                                ofn.lpstrFile = szFile;
-                                ofn.nMaxFile = sizeof(szFile);
-                                ofn.lpstrFilter = "Images\0*.PNG;*.JPG;*.JPEG;*.BMP\0All Files\0*.*\0";
-                                ofn.nFilterIndex = 1;
-                                ofn.lpstrFileTitle = NULL;
-                                ofn.nMaxFileTitle = 0;
-                                ofn.lpstrInitialDir = NULL;
-                                ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-                                
-                                if (GetOpenFileName(&ofn) == TRUE) {
-                                    // Import cover image to local storage
-                                    std::string new_cover_path = import_cover_image(szFile, slots[context_menu_slot].name);
-                                    slots[context_menu_slot].cover_path = new_cover_path;
+                        
+                        // Check which item clicked
+                        if (mx >= menu_x && mx <= menu_x + w && my >= menu_y && my <= menu_y + h) {
+                            int clicked_item = (my - menu_y) / item_h;
+                            
+                            // Item 0: Add Shortcut (App Only)
+                            if (clicked_item == 0) {
+                                if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
+                                    std::string desktop_path = getenv("USERPROFILE");
+                                    desktop_path += "\\Desktop\\";
+                                    // Suffix " (App)" to distinguish or keep same name? 
+                                    // User wants "Add Shortcut" -> App Main. Let's keep name simple or specific?
+                                    // Let's use "[Game Name]" for InGame and "[Game Name] (App)" for App?
+                                    // Or just "[Game Name]" opening App. And "[Game Name] (Play)" opening Game.
+                                    std::string shortcut_path = desktop_path + slots[context_menu_slot].name + ".lnk";
                                     
-                                    // Destroy texture cũ nếu có
-                                    if (slots[context_menu_slot].cover_texture) {
-                                        SDL_DestroyTexture(slots[context_menu_slot].cover_texture);
+                                    char buffer[MAX_PATH];
+                                    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+                                    std::string exe_path = buffer;
+                                    std::string icon_path = slots[context_menu_slot].cover_path;
+
+                                    std::string ps_cmd = "powershell.exe -ExecutionPolicy Bypass -NoProfile -Command \"";
+                                    ps_cmd += "$ws = New-Object -ComObject WScript.Shell; ";
+                                    ps_cmd += "$s = $ws.CreateShortcut('" + shortcut_path + "'); ";
+                                    ps_cmd += "$s.TargetPath = '" + exe_path + "'; ";
+                                    // NO ARGUMENTS for App Only
+                                    
+                                    if (!icon_path.empty()) {
+                                        ps_cmd += "$s.IconLocation = '" + icon_path + "'; ";
                                     }
+                                    ps_cmd += "$s.Save()\"";
+                                    system(ps_cmd.c_str());
+                                    std::cout << "✅ Created App shortcut: " << shortcut_path << std::endl;
+                                }
+                                showing_context_menu = false;
+                            }
+                            // Item 1: Add Shortcut InGame (Direct Play)
+                            else if (clicked_item == 1) {
+                                if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
+                                    std::string desktop_path = getenv("USERPROFILE");
+                                    desktop_path += "\\Desktop\\";
+                                    std::string shortcut_path = desktop_path + slots[context_menu_slot].name + " (Play).lnk";
                                     
-                                    // Load texture mới
-                                    slots[context_menu_slot].cover_texture = load_texture(renderer, new_cover_path);
+                                    char buffer[MAX_PATH];
+                                    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+                                    std::string exe_path = buffer;
+                                    std::string rom_path = slots[context_menu_slot].rom_path;
+                                    std::string icon_path = slots[context_menu_slot].cover_path;
+
+                                    std::string ps_cmd = "powershell.exe -ExecutionPolicy Bypass -NoProfile -Command \"";
+                                    ps_cmd += "$ws = New-Object -ComObject WScript.Shell; ";
+                                    ps_cmd += "$s = $ws.CreateShortcut('" + shortcut_path + "'); ";
+                                    ps_cmd += "$s.TargetPath = '" + exe_path + "'; ";
+                                    // ADD ARGUMENT for Direct Play
+                                    ps_cmd += "$s.Arguments = '\"" + rom_path + "\"'; "; 
                                     
-                                    std::cout << "✅ Đã thay đổi cover: " << szFile << std::endl;
+                                    if (!icon_path.empty()) {
+                                        ps_cmd += "$s.IconLocation = '" + icon_path + "'; ";
+                                    }
+                                    ps_cmd += "$s.Save()\"";
+                                    system(ps_cmd.c_str());
+                                    std::cout << "✅ Created InGame shortcut: " << shortcut_path << std::endl;
+                                }
+                                showing_context_menu = false;
+                            }
+                            // Item 2: Change Cover
+                            else if (clicked_item == 2) {
+                                #ifdef _WIN32
+                                if (context_menu_slot >= 0 && context_menu_slot < (int)slots.size()) {
+                                    OPENFILENAME ofn;
+                                    char szFile[260] = {0};
+                                    ZeroMemory(&ofn, sizeof(ofn));
+                                    ofn.lStructSize = sizeof(ofn);
+                                    ofn.hwndOwner = NULL;
+                                    ofn.lpstrFile = szFile;
+                                    ofn.nMaxFile = sizeof(szFile);
+                                    ofn.lpstrFilter = "Images\0*.PNG;*.JPG;*.JPEG;*.BMP\0All Files\0*.*\0";
+                                    ofn.nFilterIndex = 1;
+                                    ofn.lpstrFileTitle = NULL;
+                                    ofn.nMaxFileTitle = 0;
+                                    ofn.lpstrInitialDir = NULL;
+                                    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
                                     
-                                    // Auto-save
-                                    std::vector<SlotManager::Slot> slots_to_save;
-                                    for (const auto& slot : slots) {
-                                        if (slot.occupied) {
-                                            slots_to_save.push_back(SlotManager::Slot(slot.rom_path, slot.name, slot.cover_path));
+                                    if (GetOpenFileName(&ofn) == TRUE) {
+                                        std::string new_cover_path = import_cover_image(szFile, slots[context_menu_slot].name);
+                                        slots[context_menu_slot].cover_path = new_cover_path;
+                                        if (slots[context_menu_slot].cover_texture) SDL_DestroyTexture(slots[context_menu_slot].cover_texture);
+                                        slots[context_menu_slot].cover_texture = load_texture(renderer, new_cover_path);
+                                        
+                                        // Auto-save logic...
+                                        std::vector<SlotManager::Slot> slots_to_save;
+                                        for (const auto& slot : slots) {
+                                            if (slot.occupied) settings_nickname.empty(); // Dumy check to suppress warning
+                                            if (slot.occupied) slots_to_save.push_back(SlotManager::Slot(slot.rom_path, slot.name, slot.cover_path));
                                         }
+                                        SlotManager::save_slots(slots_file, slots_to_save);
                                     }
-                                    SlotManager::save_slots(slots_file, slots_to_save);
                                 }
+                                #endif
+                                showing_context_menu = false;
                             }
-                            #endif
-                            showing_context_menu = false;
-                        }
-                        // Delete
-                        else if (mx >= menu_x && mx <= menu_x + w && my >= menu_y + item_h * 2 && my <= menu_y + h) {
-                            delete_candidate_index = context_menu_slot;
-                            showing_delete_popup = true;
-                            showing_context_menu = false;
+                            // Item 3: Delete
+                            else if (clicked_item == 3) {
+                                delete_candidate_index = context_menu_slot;
+                                showing_delete_popup = true;
+                                showing_context_menu = false;
+                            }
                         }
                         // Click outside -> Close
                         else {
@@ -2305,27 +2350,7 @@ int main(int argc, char* argv[]) {
                         // Short Click -> Load Game
                         int i = mouse_down_slot;
                         if (i >= 0 && i < (int)slots.size() && slots[i].occupied) {
-                             if (emu.load_rom(slots[i].rom_path.c_str())) {
-                                emu.reset();
-                                for (int k = 0; k < 10; k++) emu.run_frame();
-                                emu.memory_.read(0x2002);
-                                emu.memory_.write(0x2006, 0x3F); emu.memory_.write(0x2006, 0x00);
-                                emu.memory_.write(0x2007, 0x0F); emu.memory_.write(0x2007, 0x30);
-                                emu.memory_.write(0x2007, 0x16); emu.memory_.write(0x2007, 0x27);
-                                
-                                // Ensure replay is unloaded so we don't get stuck in "Paused Replay" mode
-                                replay_player.unload_replay();
-                                
-                                current_scene = SCENE_GAME;
-                                quickBall.set_layout_normal();
-                                
-                                // Start Recording if enabled
-                                if (config.get_gameplay_recorder_enabled()) {
-                                    // Use filename as ROM name
-                                    std::string rom_name = fs::path(slots[i].rom_path).filename().string();
-                                    recorder.start_recording(rom_name);
-                                }
-                            }
+                             start_game(slots[i].rom_path);
                         }
                         mouse_down_slot = -1;
                     }
@@ -2995,11 +3020,11 @@ int main(int argc, char* argv[]) {
 
             // --- CONTEXT MENU ---
             if (showing_context_menu) {
-                int w = 180; int h = 120;
+                int w = 180; int h = 160; 
                 int item_h = 40;
                 SDL_Rect menu = {menu_x, menu_y, w, h};
                 
-                // 1. Shadow (Subtle & Large)
+                // 1. Shadow
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 for (int i = 1; i <= 5; i++) {
                     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 40 / i);
@@ -3007,52 +3032,49 @@ int main(int argc, char* argv[]) {
                     SDL_RenderDrawRect(renderer, &shadow);
                 }
                 
-                // 2. Menu Background
+                // 2. Background
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 SDL_RenderFillRect(renderer, &menu);
                 SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
                 SDL_RenderDrawRect(renderer, &menu);
 
-                // 3. Render Items
+                // 3. Items
                 int mouse_x, mouse_y;
                 SDL_GetMouseState(&mouse_x, &mouse_y);
 
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < 4; i++) {
                     int iy = menu_y + i * item_h;
                     SDL_Rect item_rect = {menu_x, iy, w, item_h};
                     
-                    // Hover Effect
                     if (mouse_x >= menu_x && mouse_x <= menu_x + w && mouse_y >= iy && mouse_y <= iy + item_h) {
                         SDL_SetRenderDrawColor(renderer, 245, 245, 245, 255);
                         SDL_RenderFillRect(renderer, &item_rect);
                     }
 
-                    // Icon & Text
                     int icon_x = menu_x + 12;
                     int text_x = menu_x + 40;
-                    int center_y = iy + 20; // Middle of the 40px item
+                    int center_y = iy + 20;
 
-                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255); // Premium Dark Slate
-                    if (i == 0) { // Add Shortcut
-                        // Link Icon (Centered)
+                    SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+                    if (i == 0) { // Shortcut App
                         SDL_Rect link1 = {icon_x, center_y - 1, 12, 2}; SDL_RenderFillRect(renderer, &link1);
                         SDL_Rect link2 = {icon_x + 2, center_y - 5, 2, 10}; SDL_RenderFillRect(renderer, &link2);
                         font_small.draw_text(renderer, "Add Shortcut", text_x, center_y + 6, {34, 43, 50, 255});
-                    } else if (i == 1) { // Change Cover
-                        // Image Icon (Centered)
+                    } else if (i == 1) { // Shortcut Game
+                        draw_filled_triangle(renderer, icon_x, center_y - 5, icon_x + 10, center_y, icon_x, center_y + 5);
+                        font_small.draw_text(renderer, "Add Shortcut InGame", text_x, center_y + 6, {34, 43, 50, 255});
+                    } else if (i == 2) { // Change Cover
                         SDL_Rect img = {icon_x, center_y - 5, 14, 10}; SDL_RenderDrawRect(renderer, &img);
                         draw_filled_circle(renderer, icon_x + 4, center_y - 2, 2);
                         font_small.draw_text(renderer, "Change Cover", text_x, center_y + 6, {34, 43, 50, 255});
-                    } else if (i == 2) { // Delete
-                        // Trash Icon (Centered)
-                        SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255); // Red for delete
+                    } else if (i == 3) { // Delete
+                        SDL_SetRenderDrawColor(renderer, 200, 80, 80, 255);
                         SDL_Rect bin = {icon_x + 2, center_y - 3, 10, 10}; SDL_RenderFillRect(renderer, &bin);
                         SDL_Rect lid = {icon_x, center_y - 5, 14, 2}; SDL_RenderFillRect(renderer, &lid);
                         font_small.draw_text(renderer, "Delete ROM", text_x, center_y + 6, {200, 80, 80, 255});
                     }
 
-                    // Separators
-                    if (i < 2) {
+                    if (i < 3) {
                         SDL_SetRenderDrawColor(renderer, 240, 240, 240, 255);
                         SDL_RenderDrawLine(renderer, menu_x + 10, iy + item_h, menu_x + w - 10, iy + item_h);
                     }
