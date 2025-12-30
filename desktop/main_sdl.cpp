@@ -1001,10 +1001,22 @@ int main(int argc, char* argv[]) {
                                  p2_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
                                  emu.set_controller(1, p2_input);
                              } else {
-                                 // Client receives Host's input as P1
-                                 // Keep Start and Select from Host (Host controls P1 fully)
-                                 uint8_t p1_input = remote_packet.input_state;
-                                 emu.set_controller(0, p1_input); // Apply Host's full input to P1
+                                 // Client receives Host's input
+                                 // Extract ONLY Start and Select from Host
+                                 uint8_t host_start_select = remote_packet.input_state & 
+                                     ((1 << Input::BUTTON_START) | (1 << Input::BUTTON_SELECT));
+                                 
+                                 // Get current P1 state (Client's own input)
+                                 uint8_t client_p1 = emu.get_controller_state(0);
+                                 
+                                 // Remove Start and Select from Client's input
+                                 client_p1 &= ~((1 << Input::BUTTON_START) | (1 << Input::BUTTON_SELECT));
+                                 
+                                 // Merge Host's Start/Select with Client's other buttons
+                                 uint8_t merged_p1 = client_p1 | host_start_select;
+                                 
+                                 // Apply merged input to P1
+                                 emu.set_controller(0, merged_p1);
                              }
                          }
                          
