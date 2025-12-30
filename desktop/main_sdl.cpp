@@ -992,59 +992,32 @@ int main(int argc, char* argv[]) {
                          // Get current P1 input state
                          uint8_t local_input = emu.get_controller_state(0);
                          
-                         // Only host can control pause (to prevent conflicts)
-                         if (lobby_is_host) {
-                             // Check for Start button press (pause/resume)
-                             static bool prev_start_pressed_host = false;
-                             bool start_pressed_host = (local_input & (1 << Input::BUTTON_START)) != 0;
-                             if (start_pressed_host && !prev_start_pressed_host) {
-                                 // Start button just pressed - toggle pause
-                                 multiplayer_paused = !multiplayer_paused;
-                                 if (multiplayer_paused) {
-                                     std::cout << "⏸️ Pausing game..." << std::endl;
-                                     net_manager.send_input(MSG_PAUSE_GAME, 0);
-                                 } else {
-                                     std::cout << "▶️ Resuming game..." << std::endl;
-                                     net_manager.send_input(MSG_RESUME_GAME, 0);
-                                 }
-                             }
-                             prev_start_pressed_host = start_pressed_host;
-                         } else {
-                             // Client: Strip Select from local input (Start is allowed for menu/intro)
+                         // Client: Strip Select AND Start from local input (only Host controls these)
+                         if (!lobby_is_host) {
                              local_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
+                             local_input &= ~(1 << Input::BUTTON_START);  // Remove Start
                              // Re-apply cleaned input to P1
                              emu.set_controller(0, local_input);
                          }
                          
-                         // Check for pause/resume messages from remote
+                         // Process remote input (P2)
                          nes::NetworkManager::Packet remote_packet;
                          while (net_manager.pop_remote_input(remote_packet)) {
-                             if (remote_packet.frame_id == MSG_PAUSE_GAME) {
-                                 multiplayer_paused = true;
-                                 std::cout << "⏸️ Remote player paused game" << std::endl;
-                             } else if (remote_packet.frame_id == MSG_RESUME_GAME) {
-                                 multiplayer_paused = false;
-                                 std::cout << "▶️ Remote player resumed game" << std::endl;
-                             } else {
-                                 // Regular input - set as P2
-                                 // Strip out Start and Select buttons (only host controls these)
-                                 uint8_t p2_input = remote_packet.input_state;
-                                 p2_input &= ~(1 << Input::BUTTON_START);  // Remove Start
-                                 p2_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
-                                 emu.set_controller(1, p2_input);
-                             }
+                             // Regular input - set as P2
+                             // Strip out Start and Select buttons (only host controls these)
+                             uint8_t p2_input = remote_packet.input_state;
+                             p2_input &= ~(1 << Input::BUTTON_START);  // Remove Start
+                             p2_input &= ~(1 << Input::BUTTON_SELECT); // Remove Select
+                             emu.set_controller(1, p2_input);
                          }
                          
-                         // Only run frame if not paused
-                         if (!multiplayer_paused) {
-                             // Send local input
-                             net_manager.send_input(multiplayer_frame_id, local_input);
-                             
-                             // Run frame
-                             emu.run_frame();
-                             emulator_ran = true;
-                             multiplayer_frame_id++;
-                         }
+                         // Send local input
+                         net_manager.send_input(multiplayer_frame_id, local_input);
+                         
+                         // Run frame
+                         emu.run_frame();
+                         emulator_ran = true;
+                         multiplayer_frame_id++;
                      } else {
                          // Single player mode
                          emu.run_frame();
@@ -1071,12 +1044,13 @@ int main(int argc, char* argv[]) {
 
             if (connected_controllers.empty() && !is_replaying) {
                 joystick.render(renderer);
-                // Render buttons, but hide Select for client in multiplayer
+                // Render buttons, but hide Select and Start for client in multiplayer
                 for (auto& b : buttons) {
-                    // Skip Select button if client in multiplayer (Start is allowed for menu/intro)
+                    // Skip Select and Start buttons if client in multiplayer (only Host controls these)
                     if (multiplayer_active && !lobby_is_host) {
-                        if (b.nes_button_mapping == Input::BUTTON_SELECT) {
-                            continue; // Skip rendering Select
+                        if (b.nes_button_mapping == Input::BUTTON_SELECT || 
+                            b.nes_button_mapping == Input::BUTTON_START) {
+                            continue; // Skip rendering Select and Start
                         }
                     }
                     b.render(renderer);
