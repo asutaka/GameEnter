@@ -418,9 +418,9 @@ public:
              bool active = (active_panel == i);
              
              if (active) {
-                 SDL_Rect line = {x + 30, tab_y + 35, tab_w - 60, 3};
-                 SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
-                 SDL_RenderFillRect(renderer, &line);
+                 // SDL_Rect line = {x + 30, tab_y + 35, tab_w - 60, 3};
+                 // SDL_SetRenderDrawColor(renderer, 34, 43, 50, 255);
+                 // SDL_RenderFillRect(renderer, &line);
              }
              
              SDL_Color color = active ? SDL_Color{34, 43, 50, 255} : SDL_Color{150, 150, 150, 255};
